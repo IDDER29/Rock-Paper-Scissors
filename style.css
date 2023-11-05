@@ -1,0 +1,61 @@
+#game {
+    padding: 100px;
+    background-color: #FC6521;
+    color: #FFF;
+    font-family: 'Press Start 2P';
+    
+
+}
+
+h1{
+    font-size: 70px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+   
+}
+h2{
+   
+    font-size: 50px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.game-section{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.game-section h1{
+     margin-bottom: 150px;
+}
+.game-section h2{
+    margin-bottom: 100px;
+}
+
+.game-chouse-part{
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+
+    gap: 100px;
+}
+.oponent{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.oponent-img{
+    width: 500px;
+    height: 500px;
+}
+.name-of-oponent{
+    font-size: 50px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}

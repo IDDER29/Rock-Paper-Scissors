@@ -1,0 +1,74 @@
+#gametm {
+    padding: 100px;
+    background-color: #FC6521;
+    color: #FFF;
+    font-family: 'Press Start 2P';
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  
+  }
+  #gametm h1{
+    margin-bottom: 50px;
+  }
+  #gametm p {
+    font-size: 50px;
+    color: black;
+  }
+.grid-time-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 50px;
+    padding: 100px;
+   
+  
+  }
+  
+  .grid-time-item {
+    width: 200px;
+    height: 200px;
+    border: 1px solid black;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #D9D9D9;
+    
+  }
+
+  
+  .material-symbols-outlined {
+    width: 80px;
+    background-color: #f2f2f2;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    text-decoration: none;
+  
+    transition: background-color 0.3s ease;
+  }
+  
+  .material-symbols-outlined:hover {
+    background-color: #ddd;
+  }
+ 
+  
+  .material-symbols-outlined:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2);
+  }
+ 
+  
+  .material-symbols-outlined {
+    font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24
+  }

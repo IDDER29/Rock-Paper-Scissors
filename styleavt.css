@@ -1,0 +1,67 @@
+#avatars-section {
+  padding: 100px;
+  background-color: #FC6521;
+  color: #FFF;
+  font-family: 'Press Start 2P';
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  grid-gap: 10px;
+  margin: 50px;
+  padding: 50px;
+  column-gap: 50px;
+  row-gap: 30px;
+
+}
+
+.grid-item {
+  width: 200px;
+  height: 200px;
+  border: 1px solid black;
+  border-radius: 50%;
+  
+}
+
+.grid-item img{
+  border-radius: 50%;
+}
+
+
+.back-button {
+  width: 80px;
+  background-color: #f2f2f2;
+  color: #333;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-decoration: none;
+
+  transition: background-color 0.3s ease;
+}
+
+.back-button:hover {
+  background-color: #ddd;
+}
+
+.back-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2);
+}
+
+
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24
+}

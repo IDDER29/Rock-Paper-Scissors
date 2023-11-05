@@ -3,11 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.3.1.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="stylesheet" href="stylechette.css">
+    <link rel="stylesheet" href="gamepy.css">
+
+
+    <title>Document</title>
 </head>
 <body>
-    <script src="./game.js">
+    <section id="header"></section>
+    <main id="gameplay">
+                <!-- The Modal -->
+        <div id="myModal" class="modal">
+            <!-- Modal content -->
+            <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="result">Player 1 wins!</p>
+            <button id="continue">Continue</button>
+            </div>
+        </div>
+  
+        <section class="game-section" >
+            <p class="result-comment">Let's Play</p>
 
+            <div class="game-chouse-part">
+
+               
+                <section class="player-turn">
+
+                    <div class="oponent">
+                        <p class="gamescorePL">0</p>
+                        <div class="oponent-img">
+                            <img src="./img/The_friend.png" alt="">
+                        </div>
+                        <p>Player: <span id="player-score">0</span></p>
+                        
+                    </div>
+                    <div class="chosen-items">
+                        <button id="rock">
+                            <div  class="chosen-item rock">
+                                <img src="./img/Rock-removebg-preview 1.png" alt="">
+                            </div>
+                        </button>
+                       <button id="paper">
+                        <div  class="chosen-item paper">
+                            <img src="./img/paper-removebg-preview 1.png" alt="">
+
+                        </div>
+                       </button>
+                       <button id="scissors">
+                        <div  class="chosen-item scissors">
+                            <img src="./img/scissors-removebg-preview 1.png" alt="">
+                        </div>
+                       </button>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="vs-img">
+                        <img src="./img/vs-removebg-preview.png" alt="">
+                    </div>
+                </section>
+                
+                <section class="oponent-turn">
+
+                    <button id="question-mark">
+                        <div class="chosen-item ">
+                            <img  src="./img/question-mark-sign.png" alt="">
+                        </div>
+                    </button>
+                    
+                    <div class="oponent">
+                        <p class="gamescoreCM">0</p>
+                        <div class="oponent-img">
+                            <img src="./img/The_evil_computer.png" alt="">
+                        </div>
+
+                        <p>
+                            Computer: <span id="computer-score">0</span>
+                        </p>
+                       
+                    </div>
+                </section>
+                
+                
+                
+               
+
+                
+            </div>
+            <div>
+                <div>
+
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <section id="footer"></section>
+    <script src="./game.js">
+       
     </script>
+    
 </body>
 </html>

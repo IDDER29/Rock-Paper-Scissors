@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.3.1.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="stylesheet" href="stylechette.css">
+
+    <title>Document</title>
+</head>
+<body>
+    <section id="header"></section>
+    <main id="game">
+        <section class="game-section" >
+            <h1>ROCK PAPER SCISSORS</h1>
+            <h2>The Ultimate Challenge</h2>
+            <div class="game-chouse-part">
+                <div class="oponent">
+                    <div class="oponent-img">
+                        <img src="./img/The_evil_computer.png" alt="">
+                    </div>
+                    <p class="name-of-oponent">Computer</p>
+                </div>
+                <h2>OR</h2>
+                <div class="oponent">
+                    <div class="oponent-img">
+                        <img src="./img/The_friend.png" alt="">
+                    </div>
+                    <p class="name-of-oponent">Friend</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <section id="footer"></section>
+    <script>
+        $(function(){
+          $("#header").load("header.html");
+          $("#footer").load("footer.html");
+        });
+    </script>
+    
+</body>
+</html>

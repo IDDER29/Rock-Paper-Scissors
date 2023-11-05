@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.3.1.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="stylechette.css">
+    <link rel="stylesheet" href="styletm.css">
+
+    <title>Document</title>
+</head>
+<body>
+    <section id="header"></section>
+    <main id="gametm">
+        <h1>The Round Count Is Up to You: </h1>
+        <h1>Choose Wisely</h1>
+
+        <section class="grid-time-container">
+            <div class="grid-time-item"><p>3</p></div>
+            <div class="grid-time-item"><p>5</p></div>
+            <div class="grid-time-item"><p>&#8734;</p></div>
+        </section>
+
+        <div class="go-back-right">
+
+            <button class="back-button material-symbols-outlined"><span class="">
+                arrow_back
+            </span></button>
+
+            <button class="advance_button material-symbols-outlined"><span >
+                arrow_right_alt
+            </span></button>
+
+            
+
+        </div>
+       
+    </main>
+   
+    <section id="footer"></section>
+    <script>
+        $(function(){
+          $("#header").load("header.html");
+          $("#footer").load("footer.html");
+        });
+    </script>
+    
+</body>
+</html>
