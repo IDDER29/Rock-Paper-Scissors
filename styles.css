@@ -75,6 +75,7 @@ body {
   font-size: clamp(15px, 1.4vw, 16.5px);
 }
 
+[hidden] { display: none !important; }
 img { max-width: 100%; display: block; }
 button { font: inherit; color: inherit; cursor: pointer; background: none; border: none; }
 kbd { font-family: inherit; }
@@ -573,6 +574,16 @@ body:not([data-screen="loading"]) [data-screen] { /* noop */ }
 .xp-breakdown { margin-top: 12px; display: grid; gap: 6px; }
 .xp-breakdown li { display: flex; justify-content: space-between; font-size: .86rem; color: var(--text-soft); }
 .xp-breakdown b { color: var(--text); }
+
+/* Post-match reads */
+.reads { margin: 0 0 24px; padding: 16px 18px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface); text-align: left; }
+.reads__head { display: flex; align-items: center; gap: 8px; font-size: .82rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+.reads__head b { color: var(--text-soft); text-transform: none; letter-spacing: 0; }
+.reads__ic { font-size: 1.1rem; }
+.reads__body { color: var(--text); font-size: .96rem; }
+.reads__tip { margin-top: 8px; font-size: .88rem; color: var(--text-soft); line-height: 1.5; }
+.reads__tiplabel { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cyan); border: 1px solid rgba(37,213,230,.35); border-radius: var(--r-full); padding: 1px 8px; margin-right: 6px; vertical-align: middle; }
+.reads em { font-style: italic; color: var(--violet-2); }
 
 /* Toasts */
 .toast-host { position: fixed; top: 78px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; width: max-content; max-width: 92vw; }

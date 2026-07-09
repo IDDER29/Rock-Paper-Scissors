@@ -45,6 +45,7 @@ const el = {};
   "xpFill", "xpGain", "xpBreakdown", "rLevelFrom", "rLevelTo", "levelUpTag",
   "soundBtn", "srStatus", "fx", "tbLevel", "tbXp", "levelChip",
   "dailyCard", "profileBody",
+  "readsPanel", "readsRival", "readsBody", "readsTip",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
 el.resultTitle = document.getElementById("result-title");
@@ -429,6 +430,7 @@ function endMatch() {
     <div class="rstat"><div class="rstat__num">${profile.career.streak}</div><div class="rstat__label">Win streak</div></div>`;
 
   renderProgress(summary);
+  renderReads(rival);
   show("result");
   injectIcons(el.resultCard);
   renderTopbar();
@@ -453,6 +455,38 @@ function renderProgress(s) {
     el.xpFill.style.transition = "width 1s cubic-bezier(.22,1,.36,1) .25s";
     el.xpFill.style.width = Math.round((s.leveledUp ? 1 : s.after.progress) * 100) + "%";
   }));
+}
+
+/* ---------- Post-match "reads" analysis ---------- */
+function renderReads(rival) {
+  if (!el.readsPanel) return;
+  const h = match.playerHistory, n = h.length;
+  if (n < 3) { el.readsPanel.hidden = true; return; }
+  const counts = { rock: 0, paper: 0, scissors: 0 };
+  h.forEach((m) => counts[m]++);
+  const fav = MOVES.reduce((a, b) => (counts[b] > counts[a] ? b : a));
+  const favPct = Math.round((counts[fav] / n) * 100);
+  let repeats = 0;
+  for (let i = 1; i < n; i++) if (h[i] === h[i - 1]) repeats++;
+  const repeatPct = Math.round((repeats / (n - 1)) * 100);
+
+  let body;
+  if (favPct >= 50) body = `You leaned on <b>${LABEL[fav]}</b> — <b>${favPct}%</b> of your ${n} throws.`;
+  else if (repeatPct >= 40) body = `You repeated your previous move <b>${repeatPct}%</b> of the time — a habit rivals exploit.`;
+  else body = `You spread your throws well (${favPct}% ${LABEL[fav]}). Genuinely tough to predict.`;
+
+  const predictable = favPct >= 50 || repeatPct >= 40;
+  const tips = {
+    rookie: predictable ? `Even the Rookie can punish a pattern — keep mixing it up.` : `Clean play. Step up to a tougher rival.`,
+    mirror: `The Mirror copies your last move, so throwing what beats your <em>own</em> previous move wins the exchange.`,
+    duelist: predictable ? `The Duelist is pure luck — but a habit still leaves you exposed to sharper rivals.` : `Perfectly balanced against a coin-flip rival.`,
+    cycler: `The Cycler rotates Rock → Paper → Scissors. Track its last throw and cut off the next.`,
+    grandmaster: predictable ? `The Grandmaster counters your favourite — cut back on <b>${LABEL[fav]}</b> and stay random.` : `You out-randomised the Grandmaster. Elite reads.`,
+  };
+  el.readsRival.textContent = rival.name;
+  el.readsBody.innerHTML = body;
+  el.readsTip.innerHTML = `<span class="reads__tiplabel">Tip</span> ${tips[rival.id] || tips.duelist}`;
+  el.readsPanel.hidden = false;
 }
 
 /* ---------- Unlock / celebration sheet ---------- */
