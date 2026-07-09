@@ -750,6 +750,23 @@ body:not([data-screen="loading"]) [data-screen] { /* noop */ }
 .h2h__score { font-family: var(--display); font-weight: 700; font-size: 1.1rem; }
 .h2h__score .me { color: var(--violet-2); } .h2h__score .them { color: var(--scissors); } .h2h__score .sep { color: var(--text-dim); margin: 0 6px; }
 
+/* Elo rating note (result screen) */
+.rating-note { display: inline-flex; align-items: center; gap: 10px; margin: 10px auto 0; padding: 8px 16px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--surface); }
+.rating-note__label { font-size: .78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; }
+.rating-note__val { font-family: var(--display); font-weight: 700; font-size: 1.2rem; }
+.rating-note__delta { font-weight: 700; font-size: .9rem; }
+.rating-note__delta.up { color: var(--win); }
+.rating-note__delta.down { color: var(--lose); }
+
+/* Rating hero + leaderboard rating rows (profile) */
+.rating-hero { display: flex; align-items: baseline; gap: 14px; padding: 18px 20px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: linear-gradient(120deg, rgba(139,107,255,.14), rgba(37,213,230,.08)); margin-top: 6px; }
+.rating-hero__num { font-family: var(--display); font-weight: 700; font-size: 2.6rem; line-height: 1; background: var(--grad-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rating-hero__meta { color: var(--text-soft); font-size: .9rem; }
+.lb__row--rank { grid-template-columns: 34px 1fr auto; }
+.lb__rating { font-family: var(--display); color: var(--text); }
+.lb__sub { display: block; font-size: .72rem; color: var(--text-dim); }
+.lb__stat { text-align: right; }
+
 @media (max-width: 620px) {
   .prof-hero { gap: 14px; }
   .prof-level__ring { width: 72px; height: 72px; }

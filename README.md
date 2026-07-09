@@ -44,6 +44,9 @@ self‑contained static web app — no framework, no build step, no backend.
   **shared, persistent head‑to‑head record**, and a **global leaderboard** both
   players see. Leave it blank and everything runs fully offline (challenge
   links just embed the moves, stats stay on‑device).
+- **Chess-style Elo rating** — every online game updates your rating (start
+  1200, K=32, zero-sum). The result screen shows your gain/loss and the global
+  leaderboard ranks players by Elo.
 
 ### Polish
 - **Installable PWA** — add to home screen and **play fully offline**.

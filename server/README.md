@@ -15,8 +15,12 @@ embed the moves in the URL and stats stay on each device.
   friend, or **Quick Match** to pair with a random waiting player). The server
   collects both players' moves each round and only reveals once both are in,
   so play is **server-authoritative and cheat-proof**.
+- **Elo ratings** — every completed game updates both players' ratings
+  (chess-style: start 1200, K=32, zero-sum, floor 100). Returned in the result
+  response and the live `round` event so clients can show the gain/loss.
 - **Games** — every completed result (challenge or live).
-- Derived on read: **head-to-head records** and the **global leaderboard**.
+- Derived on read: **head-to-head records** and the **Elo-ranked global
+  leaderboard**.
 
 Data is persisted to a JSON file (`server/data.json` by default). No database
 to set up. For higher scale, swap the JSON store for SQLite/Postgres later.

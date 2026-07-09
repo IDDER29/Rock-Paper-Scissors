@@ -50,7 +50,7 @@ const el = {};
   "modeSwitch", "rivalSection", "champSub", "passCover", "passName", "passBtn",
   "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
   "themeBtn", "challengeBanner", "lengthSection",
-  "nameInput", "nameSaveBtn", "onlineNote",
+  "nameInput", "nameSaveBtn", "onlineNote", "ratingNote",
   "liveWait", "liveWaitTitle", "liveWaitSub", "liveCode", "liveCopyBtn", "liveCancelBtn",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
@@ -218,6 +218,15 @@ let pendingChallenge = null;
 function identity() { return profile.settings.online || (profile.settings.online = { id: "", name: "" }); }
 function hasIdentity() { const o = identity(); return !!(o.id && o.name); }
 
+function renderRatingNote(rt) {
+  if (!el.ratingNote) return;
+  if (!rt) { el.ratingNote.hidden = true; return; }
+  const up = rt.delta >= 0;
+  el.ratingNote.hidden = false;
+  el.ratingNote.innerHTML = `<span class="rating-note__label">Elo rating</span><b class="rating-note__val">${rt.after}</b><span class="rating-note__delta ${up ? "up" : "down"}">${up ? "▲ +" : "▼ −"}${Math.abs(rt.delta)}</span>`;
+  const o = identity(); o.rating = rt.after; save();
+}
+
 let _nameResolve = null;
 function ensureIdentity() {
   return new Promise((resolve) => {
@@ -234,7 +243,7 @@ async function saveName() {
   const name = (el.nameInput.value || "").trim().slice(0, 24);
   if (!name) { el.nameInput.focus(); return; }
   const o = identity(); o.name = name;
-  try { if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); o.id = p.id; o.name = p.name; } }
+  try { if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); o.id = p.id; o.name = p.name; if (p.rating != null) o.rating = p.rating; } }
   catch {}
   if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10);
   save();
@@ -706,6 +715,7 @@ function endLive(d) {
     el.onlineNote.hidden = false;
     el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${oppName}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
   } else el.onlineNote.hidden = true;
+  renderRatingNote(d.ratings ? d.ratings[live.myId] : null);
 
   renderProgress(summary);
   const taunts = TAUNTS[won ? "win" : "lose"];
@@ -859,6 +869,7 @@ function endMatch() {
   match.active = false;
   if (el.passCover) el.passCover.hidden = true;
   if (el.onlineNote) el.onlineNote.hidden = true;
+  if (el.ratingNote) el.ratingNote.hidden = true;
   if (match.mode === "pvp") return endMatchPvp();
   if (match.mode === "accept") return endMatchChallenge();
 
@@ -989,6 +1000,7 @@ function endMatchChallenge() {
         const meWins = rv.a === me.id ? rv.aWins : rv.bWins;
         const themWins = rv.a === me.id ? rv.bWins : rv.aWins;
         el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${r.challengerName}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
+        renderRatingNote(r.ratings ? r.ratings[me.id] : null);
       } catch { el.onlineNote.hidden = true; }
     })();
   } else el.onlineNote.hidden = true;
@@ -1092,18 +1104,26 @@ async function renderOnlineSections() {
   if (!hasIdentity()) { document.getElementById("rivLoad").innerHTML = `<span>🌐</span><div>Set a display name (create or accept a challenge) to start building online rivalries.</div>`; return; }
   try {
     const [rv, lb] = await Promise.all([net.getRivalries(me.id).catch(() => ({ rivalries: [] })), net.getLeaderboard().catch(() => ({ leaderboard: [] }))]);
+    const board = lb.leaderboard || [];
+    const meRow = board.find((x) => x.id === me.id);
+    const myRank = meRow ? board.findIndex((x) => x.id === me.id) + 1 : 0;
+    const myRating = meRow ? meRow.rating : (identity().rating || 1200);
+    const heroHTML = `<div class="rating-hero"><div class="rating-hero__num">${myRating}</div><div class="rating-hero__meta">Elo rating${myRank ? ` · rank #${myRank} of ${board.length}` : " · provisional — play a ranked game"}</div></div>`;
+
     const rivals = rv.rivalries || [];
     const rivalsHTML = rivals.length
-      ? `<ol class="lb">${rivals.map((r) => `<li class="lb__row lb__row--h2h"><span class="lb__vs">vs</span><span class="lb__name">${r.name}</span><span class="lb__bar"><i style="width:${r.games ? Math.round((r.youWins / r.games) * 100) : 0}%"></i></span><span class="lb__stat"><b class="me">${r.youWins}</b> – <b class="them">${r.themWins}</b></span></li>`).join("")}</ol>`
-      : `<div class="career__empty"><span>🤝</span><div>No rivalries yet — send a challenge link to a friend to start one.</div></div>`;
-    const meRow = (lb.leaderboard || []).find((x) => x.id === me.id);
-    const lbHTML = (lb.leaderboard || []).length
-      ? `<ol class="lb">${lb.leaderboard.map((x, i) => { const pct = x.played ? Math.round((x.wins / x.played) * 100) : 0; const medals = ["🥇", "🥈", "🥉"]; return `<li class="lb__row ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${x.name}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__bar"><i style="width:${pct}%"></i></span><span class="lb__stat"><b>${x.wins}</b>W · ${pct}%</span></li>`; }).join("")}</ol>`
+      ? `<ol class="lb">${rivals.map((r) => `<li class="lb__row lb__row--h2h"><span class="lb__vs">vs</span><span class="lb__name">${r.name}${r.rating ? ` <em>${r.rating}</em>` : ""}</span><span class="lb__bar"><i style="width:${r.games ? Math.round((r.youWins / r.games) * 100) : 0}%"></i></span><span class="lb__stat"><b class="me">${r.youWins}</b> – <b class="them">${r.themWins}</b></span></li>`).join("")}</ol>`
+      : `<div class="career__empty"><span>🤝</span><div>No rivalries yet — send a challenge link or play a Quick Match to start one.</div></div>`;
+    const medals = ["🥇", "🥈", "🥉"];
+    const lbHTML = board.length
+      ? `<ol class="lb">${board.map((x, i) => `<li class="lb__row lb__row--rank ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${x.name}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__stat"><b class="lb__rating">${x.rating}</b><span class="lb__sub">${x.wins}W · ${x.losses}L</span></span></li>`).join("")}</ol>`
       : `<div class="career__empty"><span>🏆</span><div>The global leaderboard is empty — be the first to post a win.</div></div>`;
     host.innerHTML = `
-      <h3 class="panel__title">Rivalries <span class="muted">${me.name ? "as " + me.name : ""}</span></h3>
+      <h3 class="panel__title">Your rating <span class="muted">${me.name ? "as " + me.name : ""}</span></h3>
+      ${heroHTML}
+      <h3 class="panel__title" style="margin-top:24px">Rivalries</h3>
       ${rivalsHTML}
-      <h3 class="panel__title" style="margin-top:24px">Global leaderboard ${meRow ? `<span class="muted">you: #${(lb.leaderboard.findIndex((x) => x.id === me.id) + 1)}</span>` : ""}</h3>
+      <h3 class="panel__title" style="margin-top:24px">Global leaderboard <span class="muted">by Elo</span></h3>
       ${lbHTML}`;
   } catch {
     host.innerHTML = `<h3 class="panel__title">Online play</h3><div class="career__empty"><span>⚠️</span><div>Couldn't reach the online server. Records will sync when it's back.</div></div>`;

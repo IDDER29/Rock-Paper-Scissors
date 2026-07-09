@@ -31,12 +31,28 @@ const uuid = () => crypto.randomUUID();
 const now = () => Date.now();
 const clampName = (n) => String(n || "Player").trim().slice(0, 24) || "Player";
 
+const BASE_RATING = 1200;
 function upsertPlayer(id, name) {
-  if (id && db.players[id]) { if (name) db.players[id].name = clampName(name); return db.players[id]; }
+  if (id && db.players[id]) { if (name) db.players[id].name = clampName(name); if (db.players[id].rating == null) db.players[id].rating = BASE_RATING; return db.players[id]; }
   const nid = id || uuid();
-  db.players[nid] = db.players[nid] || { id: nid, name: clampName(name), wins: 0, losses: 0, draws: 0, created: now() };
+  db.players[nid] = db.players[nid] || { id: nid, name: clampName(name), wins: 0, losses: 0, draws: 0, rating: BASE_RATING, created: now() };
   if (name) db.players[nid].name = clampName(name);
+  if (db.players[nid].rating == null) db.players[nid].rating = BASE_RATING;
   return db.players[nid];
+}
+
+/* Elo update between two players. winner = aId | bId | null (draw). K=32, floor 100. */
+function applyElo(aId, bId, winner) {
+  const K = 32, FLOOR = 100;
+  const pa = db.players[aId], pb = db.players[bId];
+  const Ra = pa.rating == null ? BASE_RATING : pa.rating;
+  const Rb = pb.rating == null ? BASE_RATING : pb.rating;
+  const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400));
+  const Sa = winner === aId ? 1 : winner === bId ? 0 : 0.5;
+  const Ra2 = Math.max(FLOOR, Math.round(Ra + K * (Sa - Ea)));
+  const Rb2 = Math.max(FLOOR, Math.round(Rb + K * ((1 - Sa) - (1 - Ea))));
+  pa.rating = Ra2; pb.rating = Rb2;
+  return { [aId]: { before: Ra, after: Ra2, delta: Ra2 - Ra }, [bId]: { before: Rb, after: Rb2, delta: Rb2 - Rb } };
 }
 
 function rivalryBetween(a, b) {
@@ -57,7 +73,7 @@ function rivalriesFor(playerId) {
     if (g.challengerId === playerId) other = g.opponentId;
     else if (g.opponentId === playerId) other = g.challengerId;
     else continue;
-    if (!map[other]) map[other] = { opponentId: other, name: (db.players[other] || {}).name || "Player", youWins: 0, themWins: 0, draws: 0, games: 0, last: 0 };
+    if (!map[other]) map[other] = { opponentId: other, name: (db.players[other] || {}).name || "Player", rating: (db.players[other] || {}).rating == null ? BASE_RATING : db.players[other].rating, youWins: 0, themWins: 0, draws: 0, games: 0, last: 0 };
     const r = map[other];
     r.games++; r.last = Math.max(r.last, g.at);
     if (g.winner === playerId) r.youWins++; else if (g.winner === other) r.themWins++; else r.draws++;
@@ -67,9 +83,9 @@ function rivalriesFor(playerId) {
 
 function leaderboard(limit = 20) {
   return Object.values(db.players)
-    .map((p) => ({ id: p.id, name: p.name, wins: p.wins, losses: p.losses, draws: p.draws, played: p.wins + p.losses + p.draws }))
+    .map((p) => ({ id: p.id, name: p.name, rating: p.rating == null ? BASE_RATING : p.rating, wins: p.wins, losses: p.losses, draws: p.draws, played: p.wins + p.losses + p.draws }))
     .filter((p) => p.played > 0)
-    .sort((a, b) => b.wins - a.wins || b.wins / (b.played || 1) - a.wins / (a.played || 1) || b.played - a.played)
+    .sort((a, b) => b.rating - a.rating || b.wins - a.wins || b.played - a.played)
     .slice(0, limit);
 }
 
@@ -107,16 +123,18 @@ function resolveRound(room) {
   room.history.push({ round: r, picks: { ...picks }, roundWinner });
   const scores = { [a]: room.players[a].score, [b]: room.players[b].score };
   const done = room.players[a].score >= room.target || room.players[b].score >= room.target;
-  let matchWinner = null, rivalry = null;
+  let matchWinner = null, rivalry = null, ratings = null;
   if (done) {
     room.status = "finished";
     matchWinner = room.players[a].score > room.players[b].score ? a : b;
     room.matchWinner = matchWinner;
     recordLiveResult(room, matchWinner);
     rivalry = rivalryBetween(a, b);
+    ratings = applyElo(a, b, matchWinner);
+    save();
   } else room.round = r + 1;
   room.updated = now();
-  broadcast(room, "round", { round: r, picks: { ...picks }, roundWinner, scores, done, matchWinner, rivalry });
+  broadcast(room, "round", { round: r, picks: { ...picks }, roundWinner, scores, done, matchWinner, rivalry, ratings });
   if (!done) broadcastState(room);
 }
 
@@ -161,7 +179,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && p === "/api/player") {
       const b = await readBody(req);
       const player = upsertPlayer(b.id, b.name); save();
-      return sendJSON(res, 200, { id: player.id, name: player.name });
+      return sendJSON(res, 200, { id: player.id, name: player.name, rating: player.rating });
     }
 
     if (req.method === "POST" && p === "/api/challenge") {
@@ -197,8 +215,9 @@ const server = http.createServer(async (req, res) => {
       else { opp.draws++; chal.draws++; }
       db.games.push({ challengeId: c.id, challengerId: c.challengerId, challengerName: c.name, opponentId: opp.id, opponentName: opp.name, champChal: c.champId, champOpp: String(b.champId || "").slice(0, 24), pScore, cScore, winner, at: now() });
       if (db.games.length > 5000) db.games = db.games.slice(-5000);
+      const ratings = applyElo(c.challengerId, opp.id, winner);
       save();
-      return sendJSON(res, 200, { rivalry: rivalryBetween(opp.id, c.challengerId), challengerName: c.name, challengerId: c.challengerId });
+      return sendJSON(res, 200, { rivalry: rivalryBetween(opp.id, c.challengerId), challengerName: c.name, challengerId: c.challengerId, ratings });
     }
 
     if (req.method === "GET" && p === "/api/rivalries") {
