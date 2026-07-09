@@ -1,6 +1,5 @@
 node_modules/
 package.json
 package-lock.json
-_t*.mjs
-_shots.mjs
+_*.mjs
 scratch-*.mjs

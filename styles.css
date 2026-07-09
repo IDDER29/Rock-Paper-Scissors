@@ -58,6 +58,36 @@
   --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ---------- Light theme ---------- */
+:root[data-theme="light"] {
+  --bg-0: #e7eaf6;
+  --bg-1: #f4f5fb;
+  --bg-2: #ffffff;
+  --surface: rgba(24, 26, 54, 0.045);
+  --surface-2: rgba(24, 26, 54, 0.075);
+  --surface-3: rgba(24, 26, 54, 0.11);
+  --line: rgba(24, 26, 54, 0.1);
+  --line-2: rgba(24, 26, 54, 0.18);
+  --text: #12142a;
+  --text-soft: #3c4066;
+  --text-dim: #6a6f96;
+  --rock: #d98730;
+  --paper: #2f8fe0;
+  --scissors: #e85d76;
+  --shadow-sm: 0 2px 8px rgba(30, 35, 80, 0.1);
+  --shadow-md: 0 12px 30px -10px rgba(30, 35, 80, 0.2);
+  --shadow-lg: 0 30px 70px -28px rgba(30, 35, 80, 0.32);
+  --glow-violet: 0 0 0 1px rgba(139, 107, 255, 0.32), 0 12px 40px -12px rgba(139, 107, 255, 0.42);
+}
+:root[data-theme="light"] .ambient { background: radial-gradient(120% 90% at 50% -10%, #e7edff 0%, var(--bg-1) 46%, var(--bg-0) 100%); }
+:root[data-theme="light"] .orb { opacity: 0.3; mix-blend-mode: multiply; }
+:root[data-theme="light"] .grain { opacity: 0.02; }
+:root[data-theme="light"] .topbar { background: linear-gradient(to bottom, rgba(244, 245, 251, 0.82), rgba(244, 245, 251, 0)); }
+:root[data-theme="light"] .btn--primary { color: #0b0a16; }
+:root[data-theme="light"] .champ__name,
+:root[data-theme="light"] .gitem__name { background: linear-gradient(to top, rgba(255, 255, 255, 0.94), transparent); color: #12142a; }
+:root[data-theme="light"] .passcover { background: rgba(244, 245, 251, 0.86); }
+
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; }
@@ -126,6 +156,9 @@ ul, ol { list-style: none; padding: 0; }
 #soundBtn .ic--off { display: none; }
 #soundBtn[aria-pressed="false"] .ic--on { display: none; }
 #soundBtn[aria-pressed="false"] .ic--off { display: block; color: var(--text-dim); }
+#themeBtn .ic--sun { display: none; }
+:root[data-theme="light"] #themeBtn .ic--moon { display: none; }
+:root[data-theme="light"] #themeBtn .ic--sun { display: block; }
 
 /* ---------- Stage / screens ---------- */
 .stage { position: relative; }

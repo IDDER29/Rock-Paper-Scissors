@@ -48,6 +48,7 @@ const el = {};
   "readsPanel", "readsRival", "readsBody", "readsTip",
   "modeSwitch", "rivalSection", "champSub", "passCover", "passName", "passBtn",
   "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
+  "themeBtn",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
 el.resultTitle = document.getElementById("result-title");
@@ -794,6 +795,17 @@ function sheetKeys(e, sheet) {
   }
 }
 
+/* ---------- Theme ---------- */
+function applyTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  profile.settings.theme = t; save();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", t === "light" ? "#f4f5fb" : "#0a0b14");
+  if (el.themeBtn) el.themeBtn.setAttribute("aria-pressed", String(t === "light"));
+}
+function toggleTheme() { applyTheme(profile.settings.theme === "light" ? "dark" : "light"); Sound.tick(); }
+
 /* ---------- Sound toggle ---------- */
 function toggleSound() {
   soundOn = !soundOn; el.soundBtn.setAttribute("aria-pressed", String(soundOn));
@@ -856,13 +868,22 @@ function bind() {
 
   el.soundBtn.addEventListener("click", toggleSound);
   el.soundBtn.setAttribute("aria-pressed", String(soundOn));
+  if (el.themeBtn) el.themeBtn.addEventListener("click", toggleTheme);
   document.addEventListener("keydown", onKey);
   window.addEventListener("pointerdown", () => Sound.resume(), { once: true });
 }
 
+/* ---------- Service worker (PWA / offline) ---------- */
+function registerSW() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+
 /* ---------- Boot ---------- */
 function boot() {
+  applyTheme(profile.settings.theme || "dark");
   applyArena(profile.settings.arena || "nebula");
+  registerSW();
   injectIcons(document);
   buildRivalPicker();
   bind();
