@@ -1,58 +1,54 @@
 /* =========================================================
    RIVALS — static game data & progression tables
+   Progression: rating (Elo, online) is the ladder; champions
+   are won by beating the rival that holds them, or via
+   achievements. No levels / XP.
    ========================================================= */
 
-/* ---------- Champions (unlockLevel gates progression) ---------- */
+/* ---------- Champions ----------
+   unlock: {t:"start"} | {t:"rival", rival} | {t:"ach", id}
+   Rival-held champions are claimed by beating that rival once. */
 export const CHAMPIONS = [
-  { id: "luffy", name: "Luffy", img: "img/avatars/luffy.png", unlockLevel: 1 },
-  { id: "naruto", name: "Naruto", img: "img/avatars/naruto.jpg", unlockLevel: 1 },
-  { id: "nami", name: "Nami", img: "img/avatars/nami.jpg", unlockLevel: 1 },
-  { id: "gon", name: "Gon", img: "img/avatars/gonHxH.webp", unlockLevel: 1 },
-  { id: "zoro", name: "Zoro", img: "img/avatars/zoro.jpg", unlockLevel: 2 },
-  { id: "sasuke", name: "Sasuke", img: "img/avatars/sasuke.webp", unlockLevel: 3 },
-  { id: "mikasa", name: "Mikasa", img: "img/avatars/mikasa.webp", unlockLevel: 4 },
-  { id: "gaara", name: "Gaara", img: "img/avatars/gara.jpg", unlockLevel: 5 },
-  { id: "levi", name: "Levi", img: "img/avatars/levi.jpg", unlockLevel: 6 },
-  { id: "l", name: "L", img: "img/avatars/L.avif", unlockLevel: 7 },
-  { id: "shanks", name: "Shanks", img: "img/avatars/shanks.jpg", unlockLevel: 8 },
-  { id: "light", name: "Light", img: "img/avatars/yagami_light.webp", unlockLevel: 10 },
+  { id: "luffy", name: "Luffy", img: "img/avatars/luffy.png", unlock: { t: "start" } },
+  { id: "naruto", name: "Naruto", img: "img/avatars/naruto.jpg", unlock: { t: "start" } },
+  { id: "nami", name: "Nami", img: "img/avatars/nami.jpg", unlock: { t: "start" } },
+  { id: "gon", name: "Gon", img: "img/avatars/gonHxH.webp", unlock: { t: "rival", rival: "rookie" } },
+  { id: "sasuke", name: "Sasuke", img: "img/avatars/sasuke.webp", unlock: { t: "rival", rival: "mirror" } },
+  { id: "shanks", name: "Shanks", img: "img/avatars/shanks.jpg", unlock: { t: "rival", rival: "duelist" } },
+  { id: "levi", name: "Levi", img: "img/avatars/levi.jpg", unlock: { t: "rival", rival: "cycler" } },
+  { id: "l", name: "L", img: "img/avatars/L.avif", unlock: { t: "rival", rival: "grandmaster" } },
+  { id: "zoro", name: "Zoro", img: "img/avatars/zoro.jpg", unlock: { t: "ach", id: "first_blood" } },
+  { id: "gaara", name: "Gaara", img: "img/avatars/gara.jpg", unlock: { t: "ach", id: "hat_trick" } },
+  { id: "mikasa", name: "Mikasa", img: "img/avatars/mikasa.webp", unlock: { t: "ach", id: "flawless" } },
+  { id: "light", name: "Light", img: "img/avatars/yagami_light.webp", unlock: { t: "ach", id: "sharpshooter" } },
 ];
+export const CHAMP_BY_ID = Object.fromEntries(CHAMPIONS.map((c) => [c.id, c]));
 
-/* ---------- Rival personalities (readable AI strategies) ---------- */
+/* ---------- Rival personalities (readable AI strategies) ----------
+   Each rival IS the champion it holds — beat it once to claim that champion. */
 export const RIVALS = [
-  { id: "rookie", name: "The Rookie", tag: "Plays loose", stars: 1, img: "img/avatars/gara.jpg",
+  { id: "rookie", name: "The Rookie", tag: "Plays loose", stars: 1, champ: "gon", img: "img/avatars/gonHxH.webp",
     blurb: "Forgiving and easy to read — a gentle warm-up." },
-  { id: "mirror", name: "The Mirror", tag: "Copies your last move", stars: 2, img: "img/avatars/sasuke.webp",
+  { id: "mirror", name: "The Mirror", tag: "Copies your last move", stars: 2, champ: "sasuke", img: "img/avatars/sasuke.webp",
     blurb: "Reflects what you just threw. Punish the echo." },
-  { id: "duelist", name: "The Duelist", tag: "Pure chance", stars: 2, img: "img/avatars/robin-bat.jpg",
+  { id: "duelist", name: "The Duelist", tag: "Pure chance", stars: 2, champ: "shanks", img: "img/avatars/shanks.jpg",
     blurb: "No pattern at all — a true coin-flip rival." },
-  { id: "cycler", name: "The Cycler", tag: "Rotates its throws", stars: 3, img: "img/avatars/levi.jpg",
+  { id: "cycler", name: "The Cycler", tag: "Rotates its throws", stars: 3, champ: "levi", img: "img/avatars/levi.jpg",
     blurb: "Cycles Rock → Paper → Scissors, with the odd feint." },
-  { id: "grandmaster", name: "The Grandmaster", tag: "Reads your patterns", stars: 4, img: "img/avatars/mihok.avif",
+  { id: "grandmaster", name: "The Grandmaster", tag: "Reads your patterns", stars: 4, champ: "l", img: "img/avatars/L.avif",
     blurb: "Learns your habits and counters them. Stay unpredictable." },
 ];
 export const RIVAL_BY_ID = Object.fromEntries(RIVALS.map((r) => [r.id, r]));
 
-/* XP multiplier by rival difficulty (stars) */
-export const rivalXpMult = (stars) => 1 + (stars - 1) * 0.28;
-
-/* ---------- Arenas (cosmetic board themes, unlocked by level) ---------- */
+/* ---------- Arenas (cosmetic board themes) ----------
+   unlock: "start" or an achievement id. */
 export const ARENAS = [
-  { id: "nebula", name: "Nebula", unlockLevel: 1, a: "#8b6bff", b: "#25d5e6", c: "#6366f1" },
-  { id: "sunset", name: "Sunset", unlockLevel: 3, a: "#ff8a5c", b: "#ff5c9d", c: "#ffb35c" },
-  { id: "matrix", name: "Matrix", unlockLevel: 6, a: "#22e08a", b: "#25d5e6", c: "#4ade80" },
-  { id: "crimson", name: "Crimson", unlockLevel: 9, a: "#ff5c6e", b: "#b06bff", c: "#ff8a5c" },
+  { id: "nebula", name: "Nebula", unlock: "start", a: "#8b6bff", b: "#25d5e6", c: "#6366f1" },
+  { id: "sunset", name: "Sunset", unlock: "first_blood", a: "#ff8a5c", b: "#ff5c9d", c: "#ffb35c" },
+  { id: "matrix", name: "Matrix", unlock: "veteran", a: "#22e08a", b: "#25d5e6", c: "#4ade80" },
+  { id: "crimson", name: "Crimson", unlock: "gm_slayer", a: "#ff5c6e", b: "#b06bff", c: "#ff8a5c" },
 ];
 export const ARENA_BY_ID = Object.fromEntries(ARENAS.map((a) => [a.id, a]));
-
-/* ---------- XP curve ---------- */
-export const xpForLevel = (n) => Math.round(120 * Math.pow(n, 1.35));
-export function levelFromXp(xp) {
-  let level = 1, rem = Math.max(0, xp | 0);
-  while (level < 99 && rem >= xpForLevel(level)) { rem -= xpForLevel(level); level++; }
-  const need = xpForLevel(level);
-  return { level, into: rem, need, progress: Math.min(1, rem / need) };
-}
 
 /* ---------- Achievements ---------- */
 /* check(profile, ctx) — profile is post-update; ctx describes the finished match */
@@ -82,6 +78,7 @@ export const ACHIEVEMENTS = [
   { id: "sharpshooter", name: "Sharpshooter", desc: "Win 10 matches total.", icon: "🎯",
     check: (p) => p.career.wins >= 10 },
 ];
+export const ACH_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
 /* ---------- Daily challenges ---------- */
 export const DAILY_GOALS = [

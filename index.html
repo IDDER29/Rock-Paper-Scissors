@@ -41,9 +41,9 @@
     </a>
 
     <div class="topbar__actions">
-      <button class="level-chip" id="levelChip" data-nav="profile" type="button" aria-label="Open your profile">
-        <span class="level-chip__ring"><b id="tbLevel">1</b></span>
-        <span class="level-chip__bar"><i id="tbXp"></i></span>
+      <button class="rating-chip" id="levelChip" data-nav="profile" type="button" aria-label="Open your profile and rating">
+        <span class="rating-chip__ic">★</span>
+        <b id="tbRating">—</b>
       </button>
       <button class="icon-btn" id="howtoBtn" type="button" aria-haspopup="dialog" aria-label="How to play">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a10 10 0 100-20 10 10 0 000 20z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.6 9.2a2.5 2.5 0 114.2 2c-1 .8-1.8 1.3-1.8 2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.15" fill="currentColor"/></svg>
@@ -287,18 +287,6 @@
         <div class="result__scoreline" id="resultScoreline" aria-hidden="true"></div>
 
         <div class="result__stats" id="resultStats"></div>
-
-        <!-- Progression / XP -->
-        <div class="progress-block" id="progressBlock">
-          <div class="progress-block__top">
-            <span class="lvl-chip" id="rLevelFrom">Lv 1</span>
-            <span class="xp-gain" id="xpGain">+0 XP</span>
-            <span class="lvl-chip lvl-chip--to" id="rLevelTo">Lv 1</span>
-          </div>
-          <div class="xp-bar"><i id="xpFill"></i></div>
-          <span class="levelup-tag" id="levelUpTag" hidden>Level up!</span>
-          <ul class="xp-breakdown" id="xpBreakdown"></ul>
-        </div>
 
         <!-- Post-match reads -->
         <div class="reads" id="readsPanel" hidden>

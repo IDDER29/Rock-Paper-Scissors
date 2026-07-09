@@ -557,6 +557,19 @@ body:not([data-screen="loading"]) [data-screen] { /* noop */ }
 .level-chip__bar i { display: block; height: 100%; width: 0; background: var(--grad-brand); transition: width .6s var(--ease); }
 @media (max-width: 560px) { .level-chip__bar { display: none; } .level-chip { padding: 0 6px; } }
 
+/* Rating chip (topbar) */
+.rating-chip { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: var(--r-full); border: 1px solid var(--line); background: var(--surface); transition: all .2s var(--ease); font-family: var(--display); font-weight: 700; color: var(--text); }
+.rating-chip:hover { background: var(--surface-2); border-color: var(--line-2); transform: translateY(-1px); }
+.rating-chip__ic { color: #ffd166; }
+.rating-chip b { font-size: .98rem; letter-spacing: .02em; }
+.prof-level__ring--rating { background: var(--grad-brand); }
+.prof-level__ring--rating b { font-size: 1.2rem; }
+
+/* Rival reward pill + claim trophy */
+.rival__reward { display: inline-block; margin-top: 7px; font-size: .74rem; font-weight: 600; padding: 3px 10px; border-radius: var(--r-full); border: 1px solid rgba(255,209,102,.35); background: rgba(255,209,102,.1); color: #ffd166; }
+.rival__reward.is-claimed { border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.1); color: var(--win); }
+.unlock__ring--trophy { background: var(--surface-2); border: 1px solid var(--line-2); font-size: 2.4rem; }
+
 /* Daily card */
 .daily { display: block; width: 100%; text-align: left; margin-top: 22px; padding: 16px 18px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); transition: all .2s var(--ease); cursor: pointer; }
 .daily:hover { border-color: var(--violet); background: var(--surface-2); transform: translateY(-2px); }

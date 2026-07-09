@@ -1,18 +1,19 @@
 /* =========================================================
-   RIVALS — player profile, progression, achievements, daily
+   RIVALS — player profile & progression
+   Champions are won by beating the rival that holds them or by
+   achievements; arenas unlock via achievements. Rating (Elo) is
+   online-only and lives on the server. No levels / XP.
    ========================================================= */
 import {
-  CHAMPIONS, ARENAS, ACHIEVEMENTS, DAILY_GOALS,
-  xpForLevel, levelFromXp, rivalXpMult, seedFrom,
+  CHAMPIONS, CHAMP_BY_ID, ARENAS, ACHIEVEMENTS, DAILY_GOALS, seedFrom,
 } from "./data.js";
 
 const KEY = "rivals.profile.v2";
-const STARTERS = CHAMPIONS.filter((c) => c.unlockLevel <= 1).map((c) => c.id);
+const STARTERS = CHAMPIONS.filter((c) => c.unlock.t === "start").map((c) => c.id);
 
 function defaults() {
   return {
-    version: 2,
-    xp: 0,
+    version: 3,
     career: {
       wins: 0, losses: 0, draws: 0, streak: 0, bestStreak: 0,
       rounds: 0, matches: 0, flawless: 0, comebacks: 0, dailyDone: 0,
@@ -24,11 +25,10 @@ function defaults() {
     unlocks: { champions: [...STARTERS], arenas: ["nebula"], titles: [] },
     achievements: {},
     daily: null,
-    settings: { theme: "dark", sound: true, arena: "nebula", online: { id: "", name: "" } },
+    settings: { theme: "dark", sound: true, arena: "nebula", online: { id: "", name: "", rating: 0 } },
   };
 }
 
-/* deep-ish merge of stored profile onto defaults */
 function hydrate(raw) {
   const base = defaults();
   if (!raw || typeof raw !== "object") return base;
@@ -38,7 +38,7 @@ function hydrate(raw) {
   p.career.winsByChamp = { ...((raw.career || {}).winsByChamp || {}) };
   p.career.playsByChamp = { ...((raw.career || {}).playsByChamp || {}) };
   p.unlocks = { ...base.unlocks, ...(raw.unlocks || {}) };
-  p.unlocks.champions = Array.from(new Set([...STARTERS, ...(p.unlocks.champions || [])]));
+  p.unlocks.champions = Array.from(new Set([...STARTERS, ...(p.unlocks.champions || [])])).filter((id) => CHAMP_BY_ID[id]);
   p.unlocks.arenas = Array.from(new Set(["nebula", ...(p.unlocks.arenas || [])]));
   p.achievements = { ...(raw.achievements || {}) };
   p.settings = { ...base.settings, ...(raw.settings || {}) };
@@ -46,11 +46,11 @@ function hydrate(raw) {
   return p;
 }
 
-/* one-time migration from the v1 career record */
+/* migrate a v1/v2 record (had xp/level-based unlocks) — keep career + unlocks */
 function migrateLegacy(p) {
   try {
     const legacy = localStorage.getItem("rivals.career");
-    if (legacy && p.career.matches === 0 && p.xp === 0) {
+    if (legacy && p.career.matches === 0) {
       const c = JSON.parse(legacy);
       if (c) {
         p.career.wins += c.wins || 0;
@@ -58,7 +58,6 @@ function migrateLegacy(p) {
         p.career.draws += c.draws || 0;
         p.career.bestStreak = Math.max(p.career.bestStreak, c.bestStreak || 0);
         p.career.matches = (c.wins || 0) + (c.losses || 0) + (c.draws || 0);
-        p.xp = (c.wins || 0) * 100 + (c.losses || 0) * 25;
       }
     }
   } catch {}
@@ -70,34 +69,26 @@ export const profile = migrateLegacy(hydrate(readRaw()));
 function readRaw() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(profile)); } catch {} }
 
-/* ---------- level helpers ---------- */
-export const levelInfo = () => levelFromXp(profile.xp);
-export const currentLevel = () => levelInfo().level;
-
 /* ---------- unlock helpers ---------- */
 export const champUnlocked = (id) => profile.unlocks.champions.includes(id);
 export const arenaUnlocked = (id) => profile.unlocks.arenas.includes(id);
 
-function grantLevelUnlocks(fromLevel, toLevel) {
-  const gained = [];
-  for (let lv = fromLevel + 1; lv <= toLevel; lv++) {
-    CHAMPIONS.filter((c) => c.unlockLevel === lv && !champUnlocked(c.id)).forEach((c) => {
-      profile.unlocks.champions.push(c.id);
-      gained.push({ type: "champion", id: c.id, name: c.name, img: c.img });
-    });
-    ARENAS.filter((a) => a.unlockLevel === lv && !arenaUnlocked(a.id)).forEach((a) => {
-      profile.unlocks.arenas.push(a.id);
-      gained.push({ type: "arena", id: a.id, name: a.name });
-    });
-  }
-  return gained;
+function unlockChampion(id, out) {
+  if (id && CHAMP_BY_ID[id] && !champUnlocked(id)) { profile.unlocks.champions.push(id); out.push({ type: "champion", id, name: CHAMP_BY_ID[id].name, img: CHAMP_BY_ID[id].img }); }
+}
+function unlockArena(id, out) {
+  if (id && !arenaUnlocked(id)) { profile.unlocks.arenas.push(id); const a = ARENAS.find((x) => x.id === id); if (a) out.push({ type: "arena", id, name: a.name }); }
+}
+/* things unlocked by earning a given achievement id */
+function grantForAchievement(achId, out) {
+  CHAMPIONS.filter((c) => c.unlock.t === "ach" && c.unlock.id === achId).forEach((c) => unlockChampion(c.id, out));
+  ARENAS.filter((a) => a.unlock === achId).forEach((a) => unlockArena(a.id, out));
 }
 
 /* ---------- daily challenge ---------- */
 export function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
 export function ensureDaily() {
   const key = todayKey();
   if (!profile.daily || profile.daily.date !== key) {
@@ -108,13 +99,11 @@ export function ensureDaily() {
   }
   return profile.daily;
 }
-
 export function dailyLabel(d = profile.daily) {
   if (!d) return "";
   const goal = DAILY_GOALS.find((g) => g.id === d.goalId);
   return goal ? goal.label(goal.target) : "";
 }
-
 function advanceDaily(ctx) {
   const d = ensureDaily();
   if (d.done) return 0;
@@ -130,19 +119,15 @@ function advanceDaily(ctx) {
   return 0;
 }
 
-/* ---------- record a finished match ---------- */
-/*
-  ctx: { won, playerScore, cpuScore, rounds, flawless, comeback, rivalStars, moves:[...] }
-  returns a rich summary for the result UI.
-*/
+/* ---------- record a finished match ----------
+   ctx: { won, playerScore, cpuScore, rounds, flawless, comeback, rivalStars,
+          rivalId, moves, champId, challenge }
+   returns { claimed:[{type,...}], newAchievements:[], dailyCompleted } */
 export function recordMatch(ctx) {
   const c = profile.career;
-  const before = levelInfo();
-
-  // career tallies
   c.matches++;
   c.rounds += ctx.rounds;
-  ctx.moves.forEach((m) => { if (c.movesThrown[m] != null) c.movesThrown[m]++; });
+  (ctx.moves || []).forEach((m) => { if (c.movesThrown[m] != null) c.movesThrown[m]++; });
   if (ctx.won) { c.wins++; c.streak++; c.bestStreak = Math.max(c.bestStreak, c.streak); }
   else { c.losses++; c.streak = 0; }
   if (ctx.won && ctx.flawless) c.flawless++;
@@ -154,49 +139,33 @@ export function recordMatch(ctx) {
   }
   if (ctx.challenge) { if (ctx.won) c.challengesWon++; else c.challengesLost++; }
 
-  // XP breakdown
-  const breakdown = [];
-  const mult = rivalXpMult(ctx.rivalStars);
-  if (ctx.won) {
-    breakdown.push({ label: "Match won", xp: Math.round(100 * mult) });
-  } else {
-    breakdown.push({ label: "Match played", xp: 25 });
+  const claimed = [];
+  // conquest: beat the rival that holds a champion -> claim it
+  if (ctx.won && ctx.rivalId) {
+    const held = CHAMPIONS.find((ch) => ch.unlock.t === "rival" && ch.unlock.rival === ctx.rivalId);
+    if (held) unlockChampion(held.id, claimed);
   }
-  if (ctx.playerScore > 0) breakdown.push({ label: `${ctx.playerScore} rounds won`, xp: ctx.playerScore * 10 });
-  if (ctx.won && ctx.flawless) breakdown.push({ label: "Flawless bonus", xp: 75 });
-  if (ctx.won && ctx.comeback) breakdown.push({ label: "Comeback bonus", xp: 50 });
 
-  // daily
   const dailyReward = advanceDaily(ctx);
-  if (dailyReward > 0) { c.dailyDone++; breakdown.push({ label: "Daily challenge", xp: 150 }); }
+  if (dailyReward > 0) c.dailyDone++;
 
-  const xpGained = breakdown.reduce((s, b) => s + b.xp, 0);
-  profile.xp += xpGained;
-
-  const after = levelFromXp(profile.xp);
-  const leveledUp = after.level > before.level;
-  const unlocks = leveledUp ? grantLevelUnlocks(before.level, after.level) : [];
-
-  // achievements (evaluate after career + unlocks updated)
+  // achievements (after career updated) — earning one may unlock a champion/arena
   const newAchievements = [];
   ACHIEVEMENTS.forEach((a) => {
     if (!profile.achievements[a.id] && a.check(profile, ctx)) {
       profile.achievements[a.id] = Date.now();
       newAchievements.push(a);
+      grantForAchievement(a.id, claimed);
     }
   });
 
   save();
-
-  return {
-    xpGained, breakdown,
-    before, after, leveledUp,
-    unlocks, newAchievements,
-    daily: profile.daily, dailyCompleted: dailyReward > 0,
-  };
+  return { claimed, newAchievements, dailyCompleted: dailyReward > 0, daily: profile.daily };
 }
 
-/* reset everything (used by the danger-zone button) */
+/* ---------- online rating cache (display only; server is authoritative) ---------- */
+export const myRating = () => (profile.settings.online && profile.settings.online.rating) || 0;
+
 export function resetProfile() {
   const fresh = defaults();
   Object.keys(profile).forEach((k) => delete profile[k]);

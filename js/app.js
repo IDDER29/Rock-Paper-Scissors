@@ -3,11 +3,11 @@
    Engine · AI personalities · progression · FX · routing
    ========================================================= */
 import {
-  CHAMPIONS, RIVALS, RIVAL_BY_ID, ARENAS, ARENA_BY_ID, ACHIEVEMENTS, TAUNTS,
+  CHAMPIONS, CHAMP_BY_ID, RIVALS, RIVAL_BY_ID, ARENAS, ARENA_BY_ID, ACHIEVEMENTS, ACH_BY_ID, TAUNTS,
 } from "./data.js";
 import {
-  profile, save, levelInfo, currentLevel, champUnlocked, arenaUnlocked,
-  ensureDaily, dailyLabel, recordMatch, resetProfile,
+  profile, save, champUnlocked, arenaUnlocked,
+  ensureDaily, dailyLabel, recordMatch, resetProfile, myRating,
 } from "./profile.js";
 import * as net from "./net.js";
 
@@ -43,8 +43,7 @@ const el = {};
   "moves", "historyList", "quitBtn",
   "resultCard", "resultBadge", "resultKicker", "resultLine",
   "resultScoreline", "resultStats", "rematchBtn",
-  "xpFill", "xpGain", "xpBreakdown", "rLevelFrom", "rLevelTo", "levelUpTag",
-  "soundBtn", "srStatus", "fx", "tbLevel", "tbXp", "levelChip",
+  "soundBtn", "srStatus", "fx", "tbRating", "levelChip",
   "dailyCard", "profileBody",
   "readsPanel", "readsRival", "readsBody", "readsTip",
   "modeSwitch", "rivalSection", "champSub", "passCover", "passName", "passBtn",
@@ -154,11 +153,10 @@ function show(name) {
   renderTopbar();
 }
 
-/* ---------- Topbar level chip ---------- */
+/* ---------- Topbar rating chip ---------- */
 function renderTopbar() {
-  const info = levelInfo();
-  if (el.tbLevel) el.tbLevel.textContent = String(info.level);
-  if (el.tbXp) el.tbXp.style.width = Math.round(info.progress * 100) + "%";
+  const r = myRating();
+  if (el.tbRating) el.tbRating.textContent = r ? String(r) : "—";
 }
 
 /* ---------- Home ---------- */
@@ -186,7 +184,7 @@ function renderDaily() {
   el.dailyCard.innerHTML = `
     <div class="daily__head">
       <span class="daily__badge">Daily challenge</span>
-      ${d.done ? '<span class="daily__done">Complete ✓</span>' : `<span class="daily__reward">+150 XP</span>`}
+      ${d.done ? '<span class="daily__done">Complete ✓</span>' : '<span class="daily__reward">Daily Devotee badge</span>'}
     </div>
     <p class="daily__goal">${dailyLabel(d)}</p>
     <div class="daily__bar"><i style="width:${pct}%"></i></div>
@@ -293,18 +291,24 @@ function selectMode(mode) {
   Sound.tick(); refreshSetupForMode();
 }
 
+function unlockHint(c) {
+  const u = c.unlock;
+  if (u.t === "rival") { const r = RIVAL_BY_ID[u.rival]; return `Beat ${r ? r.name : "a rival"}`; }
+  if (u.t === "ach") { const a = ACH_BY_ID[u.id]; return a ? a.name : "Achievement"; }
+  return "Locked";
+}
 function renderRoster() {
   el.roster.innerHTML = CHAMPIONS.map((c, i) => {
     const unlocked = champUnlocked(c.id);
     const sel = setup.champ && setup.champ.id === c.id;
     return `
       <button class="champ ${unlocked ? "" : "is-locked"} ${sel ? "is-selected" : ""}" role="radio"
-        aria-checked="${sel}" data-id="${c.id}" data-unlocked="${unlocked}" title="${unlocked ? c.name : `Unlocks at level ${c.unlockLevel}`}"
+        aria-checked="${sel}" data-id="${c.id}" data-unlocked="${unlocked}" title="${unlocked ? c.name : `Locked — ${unlockHint(c)}`}"
         style="animation-delay:${i * 25}ms">
         <img src="${c.img}" alt="${c.name}" loading="lazy" onerror="this.style.opacity=.2" />
         <span class="champ__name">${c.name}</span>
         <span class="champ__check">${ICONS.check}</span>
-        ${unlocked ? "" : `<span class="champ__lock">${ICONS.lock}<b>Lv ${c.unlockLevel}</b></span>`}
+        ${unlocked ? "" : `<span class="champ__lock">${ICONS.lock}<b>${unlockHint(c)}</b></span>`}
       </button>`;
   }).join("");
 }
@@ -314,6 +318,9 @@ function buildRivalPicker() {
   el.rivalPicker.innerHTML = RIVALS.map((r) => {
     const sel = setup.rivalId === r.id;
     const stars = "★".repeat(r.stars) + "☆".repeat(4 - r.stars);
+    const champ = CHAMP_BY_ID[r.champ];
+    const claimed = champUnlocked(r.champ);
+    const reward = champ ? `<span class="rival__reward ${claimed ? "is-claimed" : ""}">${claimed ? `✓ ${champ.name} recruited` : `🎁 Beat to claim ${champ.name}`}</span>` : "";
     return `
       <button class="rival ${sel ? "is-selected" : ""}" role="radio" aria-checked="${sel}" data-id="${r.id}">
         <img class="rival__avatar" src="${r.img}" alt="" loading="lazy" onerror="this.style.opacity=.2"/>
@@ -321,6 +328,7 @@ function buildRivalPicker() {
           <span class="rival__name">${r.name}</span>
           <span class="rival__tag">${r.tag}</span>
           <span class="rival__blurb">${r.blurb}</span>
+          ${reward}
         </span>
         <span class="rival__stars" aria-label="${r.stars} of 4 difficulty">${stars}</span>
       </button>`;
@@ -330,7 +338,7 @@ function buildRivalPicker() {
 function selectChamp(id) {
   const champ = CHAMPIONS.find((c) => c.id === id);
   if (!champ) return;
-  if (!champUnlocked(id)) { toast(`<span class="toast__ic">${ICONS.lock}</span><div><b>${champ.name}</b> unlocks at level ${champ.unlockLevel}</div>`); Sound.tick(); return; }
+  if (!champUnlocked(id)) { toast(`<span class="toast__ic">${ICONS.lock}</span><div><b>${champ.name}</b> is locked — ${unlockHint(champ)}</div>`); Sound.tick(); return; }
   setup.champ = champ;
   $$(".champ", el.roster).forEach((b) => { const on = b.dataset.id === id; b.classList.toggle("is-selected", on); b.setAttribute("aria-checked", String(on)); });
   Sound.pick(); updateSummary();
@@ -694,7 +702,7 @@ function endLive(d) {
   const ctx = { won, playerScore: match.player, cpuScore: match.cpu, rounds: live.roundNo, flawless: won && match.cpu === 0, comeback: won && match.maxDeficit >= 2, rivalStars: 3, moves: match.myMoves.slice(), champId: setup.champ.id };
   const summary = recordMatch(ctx);
 
-  if (el.progressBlock) el.progressBlock.hidden = false;
+  if (el.progressBlock) el.progressBlock.hidden = true;
   if (el.readsPanel) el.readsPanel.hidden = true;
   el.resultCard.dataset.outcome = won ? "win" : "lose";
   el.resultBadge.textContent = won ? "👑" : "🥊";
@@ -717,7 +725,6 @@ function endLive(d) {
   } else el.onlineNote.hidden = true;
   renderRatingNote(d.ratings ? d.ratings[live.myId] : null);
 
-  renderProgress(summary);
   const taunts = TAUNTS[won ? "win" : "lose"];
   lastMatch = { mode: "ai", won, winner: won ? setup.champ.name : oppName, p1name: setup.champ.name, p1img: setup.champ.img, p2name: oppName, p2img: oppChamp ? oppChamp.img : "img/icon-192.png", pScore: match.player, cScore: match.cpu, taunt: taunts[live.roundNo % taunts.length] };
 
@@ -725,7 +732,7 @@ function endLive(d) {
   show("result"); injectIcons(el.resultCard); renderTopbar();
   if (won) { Confetti.burst(160); Sound.fanfare(); } else Sound.defeat();
   announce(won ? "You won the live match." : "You lost the live match.");
-  if (summary.leveledUp) { setTimeout(() => Sound.level(), 500); setTimeout(() => showUnlocks(summary), 900); }
+  celebrate(summary);
 }
 
 function buildPips() {
@@ -878,21 +885,24 @@ function endMatch() {
   const comeback = won && match.maxDeficit >= 2;
   const rival = RIVAL_BY_ID[setup.rivalId];
 
-  if (el.progressBlock) el.progressBlock.hidden = false;
+  if (el.progressBlock) el.progressBlock.hidden = true;
 
   const ctx = {
     won, playerScore: match.player, cpuScore: match.cpu, rounds: match.round,
-    flawless, comeback, rivalStars: rival.stars, moves: match.playerHistory.slice(),
-    champId: setup.champ.id,
+    flawless, comeback, rivalStars: rival.stars, rivalId: setup.rivalId,
+    moves: match.playerHistory.slice(), champId: setup.champ.id,
   };
   const summary = recordMatch(ctx);
+  const claimedChamp = summary.claimed.find((x) => x.type === "champion");
 
   el.resultCard.dataset.outcome = won ? "win" : "lose";
   el.resultBadge.textContent = won ? "👑" : "🥊";
   el.resultKicker.textContent = won ? "Match complete · Champion" : "Match complete";
   el.resultTitle.textContent = won ? "Victory" : "Defeated";
   el.resultLine.textContent = won
-    ? `You out-read ${rival.name} and claimed the crown.${flawless ? " Flawless." : comeback ? " What a comeback!" : ""}`
+    ? (claimedChamp
+        ? `You beat ${rival.name} and recruited ${claimedChamp.name}!`
+        : `You out-read ${rival.name}.${flawless ? " Flawless." : comeback ? " What a comeback!" : ""}`)
     : `${rival.name} had your number this time. Shake it off and run it back.`;
   el.resultScoreline.innerHTML = `<span class="me">${match.player}</span><span class="sep">—</span><span class="cpu">${match.cpu}</span>`;
   const draws = match.round - (match.player + match.cpu);
@@ -901,7 +911,6 @@ function endMatch() {
     <div class="rstat"><div class="rstat__num">${draws}</div><div class="rstat__label">Draws</div></div>
     <div class="rstat"><div class="rstat__num">${profile.career.streak}</div><div class="rstat__label">Win streak</div></div>`;
 
-  renderProgress(summary);
   renderReads(rival);
   show("result");
   injectIcons(el.resultCard);
@@ -915,8 +924,7 @@ function endMatch() {
     p1name: setup.champ.name, p1img: setup.champ.img, p2name: rival.name, p2img: rival.img,
     pScore: match.player, cScore: match.cpu, taunt: taunts[match.round % taunts.length] };
 
-  if (summary.leveledUp) { setTimeout(() => Sound.level(), 500); setTimeout(() => showUnlocks(summary), 900); }
-  else if (summary.newAchievements.length) setTimeout(() => summary.newAchievements.forEach((a, i) => setTimeout(() => toast(`<span class="toast__ic">${a.icon}</span><div><b>Achievement</b><br>${a.name}</div>`), i * 900)), 700);
+  celebrate(summary);
 }
 
 /* Pass & Play match end — no progression, neutral framing */
@@ -964,7 +972,7 @@ function endMatchChallenge() {
   };
   const summary = recordMatch(ctx);
 
-  if (el.progressBlock) el.progressBlock.hidden = false;
+  if (el.progressBlock) el.progressBlock.hidden = true;
   if (el.readsPanel) el.readsPanel.hidden = true;
 
   el.resultCard.dataset.outcome = won ? "win" : tie ? "draw" : "lose";
@@ -982,7 +990,6 @@ function endMatchChallenge() {
     <div class="rstat"><div class="rstat__num">${draws}</div><div class="rstat__label">Draws</div></div>
     <div class="rstat"><div class="rstat__num">${profile.career.challengesWon}</div><div class="rstat__label">Challenges won</div></div>`;
 
-  renderProgress(summary);
   const taunts = TAUNTS[won ? "win" : "lose"];
   lastMatch = { mode: "ai", won, winner: won ? setup.champ.name : foeName,
     p1name: setup.champ.name, p1img: setup.champ.img, p2name: foeName, p2img: match.p2img,
@@ -1008,22 +1015,14 @@ function endMatchChallenge() {
   show("result"); injectIcons(el.resultCard); renderTopbar();
   if (won) { Confetti.burst(160); Sound.fanfare(); } else Sound.defeat();
   announce(won ? "You beat the gauntlet." : "The gauntlet held.");
-  if (summary.leveledUp) { setTimeout(() => Sound.level(), 500); setTimeout(() => showUnlocks(summary), 900); }
+  celebrate(summary);
 }
 
-function renderProgress(s) {
-  if (!el.xpFill) return;
-  el.rLevelFrom.textContent = "Lv " + s.before.level;
-  el.rLevelTo.textContent = "Lv " + s.after.level;
-  el.levelUpTag.hidden = !s.leveledUp;
-  el.xpGain.textContent = `+${s.xpGained} XP`;
-  el.xpBreakdown.innerHTML = s.breakdown.map((b) => `<li><span>${b.label}</span><b>+${b.xp}</b></li>`).join("");
-  el.xpFill.style.transition = "none";
-  el.xpFill.style.width = Math.round(s.before.progress * 100) + "%";
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    el.xpFill.style.transition = "width 1s cubic-bezier(.22,1,.36,1) .25s";
-    el.xpFill.style.width = Math.round((s.leveledUp ? 1 : s.after.progress) * 100) + "%";
-  }));
+/* celebrate claimed champions / arenas / achievements after a match */
+function celebrate(summary) {
+  const rewards = summary.claimed || [];
+  if (rewards.length) { setTimeout(() => Sound.level(), 500); setTimeout(() => showClaim(summary), 900); }
+  else if (summary.newAchievements.length) setTimeout(() => summary.newAchievements.forEach((a, i) => setTimeout(() => toast(`<span class="toast__ic">${a.icon}</span><div><b>Achievement</b><br>${a.name}</div>`), i * 900)), 700);
 }
 
 /* ---------- Post-match "reads" analysis ---------- */
@@ -1058,18 +1057,19 @@ function renderReads(rival) {
   el.readsPanel.hidden = false;
 }
 
-/* ---------- Unlock / celebration sheet ---------- */
-function showUnlocks(s) {
+/* ---------- Reward / claim sheet ---------- */
+function showClaim(s) {
   const sheet = document.getElementById("unlockSheet");
   const body = document.getElementById("unlockBody");
   if (!sheet || !body) return;
-  const champs = s.unlocks.filter((u) => u.type === "champion");
-  const arenas = s.unlocks.filter((u) => u.type === "arena");
+  const champs = s.claimed.filter((u) => u.type === "champion");
+  const arenas = s.claimed.filter((u) => u.type === "arena");
+  const title = champs.length ? (champs.length > 1 ? "Champions recruited!" : `${champs[0].name} recruited!`) : "New reward unlocked!";
   body.innerHTML = `
-    <div class="unlock__level"><span class="unlock__ring">${s.after.level}</span></div>
-    <h2 class="sheet__title">Level ${s.after.level}!</h2>
-    <p class="sheet__lede">${s.unlocks.length ? "New rewards unlocked." : "Keep the streak going."}</p>
-    ${champs.length ? `<div class="unlock__grid">${champs.map((c) => `<div class="unlock__item"><img src="${c.img}" alt="${c.name}"/><span>${c.name}</span><em>Champion</em></div>`).join("")}</div>` : ""}
+    <div class="unlock__level"><span class="unlock__ring unlock__ring--trophy">🏆</span></div>
+    <h2 class="sheet__title">${title}</h2>
+    <p class="sheet__lede">${champs.length ? "You beat them — now you can play as them." : "Nice work."}</p>
+    ${champs.length ? `<div class="unlock__grid">${champs.map((c) => `<div class="unlock__item"><img src="${c.img}" alt="${c.name}"/><span>${c.name}</span><em>New champion</em></div>`).join("")}</div>` : ""}
     ${arenas.length ? `<div class="unlock__arenas">${arenas.map((a) => `<span class="unlock__arena">🎨 ${a.name} arena</span>`).join("")}</div>` : ""}
     ${s.newAchievements.length ? `<div class="unlock__ach">${s.newAchievements.map((a) => `<span class="ach-pill">${a.icon} ${a.name}</span>`).join("")}</div>` : ""}
     <button class="btn btn--primary btn--block" data-close type="button">Nice</button>`;
@@ -1132,7 +1132,8 @@ async function renderOnlineSections() {
 
 function renderProfile() {
   if (!el.profileBody) return;
-  const c = profile.career, info = levelInfo();
+  const c = profile.career;
+  const rating = myRating();
   const played = c.wins + c.losses + c.draws || 1;
   const rate = Math.round((c.wins / played) * 100);
   const totalMoves = c.movesThrown.rock + c.movesThrown.paper + c.movesThrown.scissors || 1;
@@ -1141,11 +1142,12 @@ function renderProfile() {
 
   el.profileBody.innerHTML = `
     <div class="prof-hero">
-      <div class="prof-level"><span class="prof-level__ring" style="--p:${info.progress}"><b>${info.level}</b></span></div>
+      <div class="prof-level"><span class="prof-level__ring prof-level__ring--rating"><b>${rating || "—"}</b></span></div>
       <div class="prof-hero__meta">
-        <h2 class="section-title">Level ${info.level}</h2>
-        <div class="prof-xpbar"><i style="width:${Math.round(info.progress * 100)}%"></i></div>
-        <p class="prof-xp">${info.into} / ${info.need} XP to level ${info.level + 1}</p>
+        <h2 class="section-title">${rating ? rating + " rating" : "Unranked"}</h2>
+        <p class="prof-xp">${rating
+          ? "Elo rating — win online matches to climb the ladder."
+          : (net.online() ? "Play a Quick Match or a friend online to earn your first rating." : "Rating is earned online. Champions: " + profile.unlocks.champions.length + "/" + CHAMPIONS.length + " collected.")}</p>
       </div>
     </div>
     <div class="prof-stats">
@@ -1180,14 +1182,14 @@ function renderProfile() {
       <h3 class="panel__title">Champions <span class="muted">${profile.unlocks.champions.length}/${CHAMPIONS.length}</span></h3>
       <div class="gallery">
         ${CHAMPIONS.map((ch) => { const got = champUnlocked(ch.id);
-          return `<div class="gitem ${got ? "" : "is-locked"}"><img src="${ch.img}" alt="${ch.name}" loading="lazy"/>${got ? "" : `<span class="gitem__lock">${ICONS.lock}<b>Lv ${ch.unlockLevel}</b></span>`}<span class="gitem__name">${ch.name}</span></div>`; }).join("")}
+          return `<div class="gitem ${got ? "" : "is-locked"}" title="${got ? ch.name : "Locked — " + unlockHint(ch)}"><img src="${ch.img}" alt="${ch.name}" loading="lazy"/>${got ? "" : `<span class="gitem__lock">${ICONS.lock}<b>${unlockHint(ch)}</b></span>`}<span class="gitem__name">${ch.name}</span></div>`; }).join("")}
       </div>
     </div>
     <div class="prof-section">
       <h3 class="panel__title">Arena</h3>
       <div class="arena-picker">
-        ${ARENAS.map((a) => { const got = arenaUnlocked(a.id), on = profile.settings.arena === a.id;
-          return `<button class="arena-swatch ${on ? "is-on" : ""} ${got ? "" : "is-locked"}" data-arena="${a.id}" ${got ? "" : "disabled"} title="${got ? a.name : `Unlocks at level ${a.unlockLevel}`}"><span style="background:linear-gradient(120deg,${a.a},${a.b})"></span>${a.name}${got ? "" : ` · Lv ${a.unlockLevel}`}</button>`; }).join("")}
+        ${ARENAS.map((a) => { const got = arenaUnlocked(a.id), on = profile.settings.arena === a.id; const req = a.unlock === "start" ? "" : (ACH_BY_ID[a.unlock] ? ACH_BY_ID[a.unlock].name : "");
+          return `<button class="arena-swatch ${on ? "is-on" : ""} ${got ? "" : "is-locked"}" data-arena="${a.id}" ${got ? "" : "disabled"} title="${got ? a.name : `Unlock: ${req}`}"><span style="background:linear-gradient(120deg,${a.a},${a.b})"></span>${a.name}${got ? "" : (req ? ` · ${req}` : "")}</button>`; }).join("")}
       </div>
     </div>
     <div class="prof-section" id="onlineSections"></div>

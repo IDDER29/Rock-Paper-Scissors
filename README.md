@@ -27,12 +27,16 @@ self‑contained static web app — no framework, no build step, no backend.
   move, your habits) and gives a personality‑specific tip to improve.
 
 ### Progress
-- **Levels & XP** with a top‑bar level meter and animated result‑screen breakdown.
-- **Unlocks** — 4 starter champions; 8 more plus arena themes unlock as you level.
-- **12 achievements** (First Blood, Flawless, Comeback King, Grandmaster Slayer…).
+- **Rating is the ladder** — no levels or XP. Your chess-style **Elo rating**
+  (online) is the single measure of skill, shown in the top bar and profile.
+- **Win champions by conquest** — each of the 5 rivals *is* the character it
+  holds; **beat it once to recruit that champion** and play as them. The rest
+  unlock through achievements, so you can collect offline too.
+- **12 achievements** (First Blood, Flawless, Comeback King, Grandmaster
+  Slayer…) that also unlock champions and arena themes.
 - **Daily challenge** — a deterministic goal everyone shares each day.
-- **Profile** — level ring, career stats, throw distribution, achievements,
-  champion gallery, arena picker, and a **champion leaderboard** ranked by wins.
+- **Profile** — rating, career stats, throw distribution, achievements,
+  champion gallery (with how to unlock each), arenas, and leaderboards.
 
 ### Share & play online
 - **Match cards** — a rendered result image ready to post, via the Web Share
