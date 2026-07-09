@@ -9,33 +9,33 @@
    unlock: {t:"start"} | {t:"rival", rival} | {t:"ach", id}
    Rival-held champions are claimed by beating that rival once. */
 export const CHAMPIONS = [
-  { id: "luffy", name: "Luffy", img: "img/avatars/luffy.png", unlock: { t: "start" } },
-  { id: "naruto", name: "Naruto", img: "img/avatars/naruto.jpg", unlock: { t: "start" } },
-  { id: "nami", name: "Nami", img: "img/avatars/nami.jpg", unlock: { t: "start" } },
-  { id: "gon", name: "Gon", img: "img/avatars/gonHxH.webp", unlock: { t: "rival", rival: "rookie" } },
-  { id: "sasuke", name: "Sasuke", img: "img/avatars/sasuke.webp", unlock: { t: "rival", rival: "mirror" } },
-  { id: "shanks", name: "Shanks", img: "img/avatars/shanks.jpg", unlock: { t: "rival", rival: "duelist" } },
-  { id: "levi", name: "Levi", img: "img/avatars/levi.jpg", unlock: { t: "rival", rival: "cycler" } },
-  { id: "l", name: "L", img: "img/avatars/L.avif", unlock: { t: "rival", rival: "grandmaster" } },
-  { id: "zoro", name: "Zoro", img: "img/avatars/zoro.jpg", unlock: { t: "ach", id: "first_blood" } },
-  { id: "gaara", name: "Gaara", img: "img/avatars/gara.jpg", unlock: { t: "ach", id: "hat_trick" } },
-  { id: "mikasa", name: "Mikasa", img: "img/avatars/mikasa.webp", unlock: { t: "ach", id: "flawless" } },
-  { id: "light", name: "Light", img: "img/avatars/yagami_light.webp", unlock: { t: "ach", id: "sharpshooter" } },
+  { id: "ember", name: "Ember", img: "img/champions/ember.svg", unlock: { t: "start" } },
+  { id: "frost", name: "Frost", img: "img/champions/frost.svg", unlock: { t: "start" } },
+  { id: "volt", name: "Volt", img: "img/champions/volt.svg", unlock: { t: "start" } },
+  { id: "kai", name: "Kai", img: "img/champions/kai.svg", unlock: { t: "rival", rival: "rookie" } },
+  { id: "luna", name: "Luna", img: "img/champions/luna.svg", unlock: { t: "rival", rival: "mirror" } },
+  { id: "nova", name: "Nova", img: "img/champions/nova.svg", unlock: { t: "rival", rival: "duelist" } },
+  { id: "onyx", name: "Onyx", img: "img/champions/onyx.svg", unlock: { t: "rival", rival: "cycler" } },
+  { id: "ash", name: "Ash", img: "img/champions/ash.svg", unlock: { t: "rival", rival: "grandmaster" } },
+  { id: "blaze", name: "Blaze", img: "img/champions/blaze.svg", unlock: { t: "ach", id: "first_blood" } },
+  { id: "cinder", name: "Cinder", img: "img/champions/cinder.svg", unlock: { t: "ach", id: "hat_trick" } },
+  { id: "dune", name: "Dune", img: "img/champions/dune.svg", unlock: { t: "ach", id: "flawless" } },
+  { id: "sol", name: "Sol", img: "img/champions/sol.svg", unlock: { t: "ach", id: "sharpshooter" } },
 ];
 export const CHAMP_BY_ID = Object.fromEntries(CHAMPIONS.map((c) => [c.id, c]));
 
 /* ---------- Rival personalities (readable AI strategies) ----------
    Each rival IS the champion it holds — beat it once to claim that champion. */
 export const RIVALS = [
-  { id: "rookie", name: "The Rookie", tag: "Plays loose", stars: 1, champ: "gon", img: "img/avatars/gonHxH.webp",
+  { id: "rookie", name: "The Rookie", tag: "Plays loose", stars: 1, champ: "kai", img: "img/champions/kai.svg",
     blurb: "Forgiving and easy to read — a gentle warm-up." },
-  { id: "mirror", name: "The Mirror", tag: "Copies your last move", stars: 2, champ: "sasuke", img: "img/avatars/sasuke.webp",
+  { id: "mirror", name: "The Mirror", tag: "Copies your last move", stars: 2, champ: "luna", img: "img/champions/luna.svg",
     blurb: "Reflects what you just threw. Punish the echo." },
-  { id: "duelist", name: "The Duelist", tag: "Pure chance", stars: 2, champ: "shanks", img: "img/avatars/shanks.jpg",
+  { id: "duelist", name: "The Duelist", tag: "Pure chance", stars: 2, champ: "nova", img: "img/champions/nova.svg",
     blurb: "No pattern at all — a true coin-flip rival." },
-  { id: "cycler", name: "The Cycler", tag: "Rotates its throws", stars: 3, champ: "levi", img: "img/avatars/levi.jpg",
+  { id: "cycler", name: "The Cycler", tag: "Rotates its throws", stars: 3, champ: "onyx", img: "img/champions/onyx.svg",
     blurb: "Cycles Rock → Paper → Scissors, with the odd feint." },
-  { id: "grandmaster", name: "The Grandmaster", tag: "Reads your patterns", stars: 4, champ: "l", img: "img/avatars/L.avif",
+  { id: "grandmaster", name: "The Grandmaster", tag: "Reads your patterns", stars: 4, champ: "ash", img: "img/champions/ash.svg",
     blurb: "Learns your habits and counters them. Stay unpredictable." },
 ];
 export const RIVAL_BY_ID = Object.fromEntries(RIVALS.map((r) => [r.id, r]));

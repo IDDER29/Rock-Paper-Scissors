@@ -74,7 +74,8 @@ Vanilla HTML, CSS, and ES‑module JavaScript. State persists in `localStorage`.
 | `js/net.js`, `js/config.js` | Online API client + backend URL config |
 | `server/` | Optional zero‑dependency backend (records + leaderboard) |
 | `sw.js`, `manifest.webmanifest` | PWA offline shell + install metadata |
-| `img/` | Champion avatars, artwork, app icons |
+| `img/champions/` | Original champion crest avatars (SVG, generated) |
+| `img/` | Artwork + app icons |
 
 ## Run locally
 
