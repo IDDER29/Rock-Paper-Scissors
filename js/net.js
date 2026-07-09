@@ -35,6 +35,8 @@ export const getLeaderboard = () => api("/api/leaderboard");
 export const createRoom = (playerId, name, champId, target) =>
   api("/api/room", { method: "POST", body: JSON.stringify({ playerId, name, champId, target }) });
 export const getRoom = (id) => api("/api/room/" + encodeURIComponent(id));
+export const matchmake = (playerId, name, champId, target) =>
+  api("/api/matchmake", { method: "POST", body: JSON.stringify({ playerId, name, champId, target }) });
 export const joinRoom = (id, playerId, name, champId) =>
   api("/api/room/" + encodeURIComponent(id) + "/join", { method: "POST", body: JSON.stringify({ playerId, name, champId }) });
 export const sendMove = (id, playerId, move) =>

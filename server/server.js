@@ -125,7 +125,8 @@ setInterval(() => {
   for (const id of Object.keys(rooms)) {
     const room = rooms[id];
     const idle = t - (room.updated || room.createdAt);
-    if ((room.streams.length === 0 && idle > 5 * 60 * 1000) || idle > 60 * 60 * 1000) delete rooms[id];
+    const staleQueue = room.matchmaking && room.status === "waiting" && room.streams.length === 0 && idle > 45 * 1000;
+    if (staleQueue || (room.streams.length === 0 && idle > 5 * 60 * 1000) || idle > 60 * 60 * 1000) delete rooms[id];
   }
 }, 60 * 1000).unref?.();
 
@@ -217,6 +218,27 @@ const server = http.createServer(async (req, res) => {
       const id = uuid().slice(0, 6);
       rooms[id] = { id, target: Math.min(Math.max((b.target | 0) || 5, 1), 9), status: "waiting", round: 1, order: [me.id], players: { [me.id]: { name: me.name, champId: String(b.champId || "").slice(0, 24), score: 0, connected: false } }, picks: {}, history: [], streams: [], matchWinner: null, createdAt: now(), updated: now() };
       return sendJSON(res, 200, { roomId: id, playerId: me.id });
+    }
+
+    if (req.method === "POST" && p === "/api/matchmake") {
+      const b = await readBody(req);
+      const me = upsertPlayer(b.playerId, b.name); save();
+      const champId = String(b.champId || "").slice(0, 24);
+      const target = Math.min(Math.max((b.target | 0) || 5, 1), 9);
+      // pair with an open public room whose host is connected (or just created)
+      const open = Object.values(rooms).find((r) =>
+        r.matchmaking && r.status === "waiting" && r.order.length === 1 && r.order[0] !== me.id &&
+        r.players[r.order[0]] && (r.players[r.order[0]].connected || now() - r.createdAt < 12000));
+      if (open) {
+        open.order.push(me.id);
+        open.players[me.id] = { name: me.name, champId, score: 0, connected: false };
+        open.status = "playing"; open.updated = now();
+        broadcastState(open);
+        return sendJSON(res, 200, { roomId: open.id, target: open.target, paired: true });
+      }
+      const id = uuid().slice(0, 6);
+      rooms[id] = { id, target, status: "waiting", round: 1, order: [me.id], players: { [me.id]: { name: me.name, champId, score: 0, connected: false } }, picks: {}, history: [], streams: [], matchWinner: null, matchmaking: true, createdAt: now(), updated: now() };
+      return sendJSON(res, 200, { roomId: id, target, paired: false });
     }
     let m;
     if ((m = p.match(/^\/api\/room\/([^/]+)$/)) && req.method === "GET") {

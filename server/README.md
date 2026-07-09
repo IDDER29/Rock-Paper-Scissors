@@ -11,7 +11,8 @@ embed the moves in the URL and stats stay on each device.
 
 - **Players** — an id + display name, with win/loss/draw tallies.
 - **Challenges** — a champion + a gauntlet of throws, addressed by a short id.
-- **Live rooms** — real-time 1v1 matches over Server-Sent Events. The server
+- **Live rooms** — real-time 1v1 matches over Server-Sent Events (invite a
+  friend, or **Quick Match** to pair with a random waiting player). The server
   collects both players' moves each round and only reveals once both are in,
   so play is **server-authoritative and cheat-proof**.
 - **Games** — every completed result (challenge or live).
@@ -69,7 +70,8 @@ Commit that and your GitHub Pages build is now online. CORS is already open
 | `POST` | `/api/result` | `{challengeId, opponentId, opponentName, champId, pScore, cScore}` | `{rivalry, challengerName, challengerId}` |
 | `GET` | `/api/rivalries` | `?player=id` | `{rivalries:[…]}` |
 | `GET` | `/api/leaderboard` | `?limit=` | `{leaderboard:[…]}` |
-| `POST` | `/api/room` | `{playerId, name, champId, target}` | `{roomId}` (create live room) |
+| `POST` | `/api/matchmake` | `{playerId, name, champId, target}` | `{roomId, paired}` (pair with a random waiting player, or open a public room) |
+| `POST` | `/api/room` | `{playerId, name, champId, target}` | `{roomId}` (create private live room) |
 | `GET` | `/api/room/:id` | — | room snapshot (for the join screen) |
 | `POST` | `/api/room/:id/join` | `{playerId, name, champId}` | `{ok, target}` |
 | `GET` | `/api/room/:id/events` | `?player=id` | **SSE** stream: `state` + `round` events |

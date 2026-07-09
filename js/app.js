@@ -247,7 +247,7 @@ const setup = { champ: null, rivalId: "duelist", length: 5, mode: "ai" };
 
 function refreshSetupForMode() {
   const mode = setup.mode;
-  const isAi = mode === "ai", isPvp = mode === "pvp", isChal = mode === "challenge", isAccept = mode === "accept", isLive = mode === "live";
+  const isAi = mode === "ai", isPvp = mode === "pvp", isChal = mode === "challenge", isAccept = mode === "accept", isLive = mode === "live", isQuick = mode === "quick";
   const liveJoin = isLive && !!pendingLive;
   if (el.rivalSection) el.rivalSection.hidden = !isAi;
   if (el.lengthSection) el.lengthSection.hidden = isChal || isAccept || liveJoin;
@@ -257,6 +257,7 @@ function refreshSetupForMode() {
     : isAccept ? "Pick your champion, then out-read the gauntlet."
     : liveJoin ? `Pick your champion to join ${pendingLive.hostName}'s live match.`
     : isLive ? "Pick your champion and length, then invite a friend to a real-time match."
+    : isQuick ? "Pick your champion — we'll match you with a random player online."
     : "This is you in the ring. Pick the face of your winning streak.";
   // banner (challenge accept OR live join)
   if (el.challengeBanner) {
@@ -271,12 +272,12 @@ function refreshSetupForMode() {
     } else el.challengeBanner.hidden = true;
   }
   const span = el.startBtn.querySelector("span");
-  if (span) span.textContent = isChal ? "Set your gauntlet" : isAccept ? "Accept challenge" : liveJoin ? "Join match" : isLive ? "Create live room" : "Start the duel";
+  if (span) span.textContent = isChal ? "Set your gauntlet" : isAccept ? "Accept challenge" : liveJoin ? "Join match" : isLive ? "Create live room" : isQuick ? "Find a match" : "Start the duel";
   updateSummary();
 }
 
 function selectMode(mode) {
-  if (mode === "live" && !net.online()) { toast("Live play needs the online server — see server/README."); Sound.tick(); return; }
+  if ((mode === "live" || mode === "quick") && !net.online()) { toast("Online play needs the server — see server/README."); Sound.tick(); return; }
   if (mode !== "live") pendingLive = null;
   setup.mode = mode;
   $$(".mode", el.modeSwitch).forEach((b) => { const on = b.dataset.mode === mode; b.classList.toggle("is-selected", on); b.setAttribute("aria-checked", String(on)); });
@@ -352,6 +353,8 @@ function updateSummary() {
     el.setupSummary.innerHTML = pendingLive
       ? `Join <b>${pendingLive.hostName}</b>'s live match as <b>${setup.champ.name}</b>.`
       : `Host a live match as <b>${setup.champ.name}</b> · first to <b>${setup.length}</b>.`;
+  } else if (setup.mode === "quick") {
+    el.setupSummary.innerHTML = `Find a random opponent as <b>${setup.champ.name}</b> · first to <b>${setup.length}</b>.`;
   } else {
     const r = RIVAL_BY_ID[setup.rivalId];
     el.setupSummary.innerHTML = `Playing as <b>${setup.champ.name}</b> vs <b>${r.name}</b> · first to <b>${setup.length}</b>.`;
@@ -373,6 +376,7 @@ function startMatch() {
   if (setup.mode === "challenge") return startGauntlet();
   if (setup.mode === "accept") return startAccept();
   if (setup.mode === "live") return startLive();
+  if (setup.mode === "quick") return startQuick();
   const pvp = setup.mode === "pvp";
   Object.assign(match, {
     active: true, locked: false, round: 0, player: 0, cpu: 0, target: setup.length,
@@ -541,7 +545,15 @@ function showLiveWait(link, code) {
   live._link = link;
   el.liveWaitTitle.textContent = "Waiting for your rival…";
   el.liveWaitSub.textContent = "Share this link. The match starts the moment they join.";
+  if (el.liveCopyBtn) el.liveCopyBtn.hidden = false;
   el.liveCode.hidden = false; el.liveCode.textContent = "Room " + code;
+  el.liveWait.hidden = false;
+}
+function showFindingWait() {
+  el.liveWaitTitle.textContent = "Finding an opponent…";
+  el.liveWaitSub.textContent = "Matching you with another player online. Hang tight.";
+  if (el.liveCode) el.liveCode.hidden = true;
+  if (el.liveCopyBtn) el.liveCopyBtn.hidden = true;
   el.liveWait.hidden = false;
 }
 function prepLiveBattle(myChamp, target) {
@@ -576,6 +588,18 @@ async function startLive() {
     connectRoom(r.roomId, me.id);
   } catch { toast("Couldn't create a live room."); show("setup"); }
 }
+async function startQuick() {
+  if (!setup.champ) return;
+  if (!net.online()) { toast("Online play needs the server."); return; }
+  const me = await ensureIdentity(); if (!me) return;
+  try {
+    const r = await net.matchmake(me.id, me.name, setup.champ.id, setup.length);
+    live = { id: r.roomId, myId: me.id, oppId: null, target: r.target || setup.length, status: r.paired ? "playing" : "waiting", finished: false, matchmaking: true };
+    prepLiveBattle(setup.champ, live.target);
+    if (r.paired) { if (el.liveWait) el.liveWait.hidden = true; } else showFindingWait();
+    connectRoom(r.roomId, me.id);
+  } catch { toast("Matchmaking failed — try again."); show("setup"); }
+}
 async function joinLive(id, me) {
   try {
     const rr = await net.joinRoom(id, me.id, me.name, setup.champ.id);
@@ -609,7 +633,7 @@ function handleLiveState(s) {
   if ($$(".pip", el.pips).length !== s.target) buildPips();
   paintPips();
 
-  if (s.status === "waiting") { el.moves.classList.add("is-locked"); if (el.liveWait) el.liveWait.hidden = false; }
+  if (s.status === "waiting") { el.moves.classList.add("is-locked"); if (live.matchmaking) showFindingWait(); else if (el.liveWait) el.liveWait.hidden = false; }
   else if (s.status === "playing") {
     if (el.liveWait) el.liveWait.hidden = true;
     if (!oppP.connected) { setStatus(`${oppP.name || "Rival"} disconnected — waiting…`); el.moves.classList.add("is-locked"); return; }

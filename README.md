@@ -9,12 +9,14 @@ self‑contained static web app — no framework, no build step, no backend.
 ## Features
 
 ### Play
-- **Four ways to play**
+- **Five ways to play**
   - **vs Rival** — face the AI.
   - **Pass & Play** — two players share one device.
   - **Challenge** — set a gauntlet of throws and send a friend a link to beat.
-  - **Live** — real-time 1v1 online match (with the backend running): share an
-    invite link and play simultaneous, server-judged rounds.
+  - **Live** — real-time 1v1 with a friend: share an invite link and play
+    simultaneous, server-judged rounds.
+  - **Quick Match** — get paired with a **random opponent online**, no link
+    needed. (Live and Quick Match need the backend running.)
 - **Five AI personalities**, each with a readable "tell" and star difficulty:
   Rookie, Mirror (copies your last move), Duelist (pure chance),
   Cycler (rotates its throws), and Grandmaster (counters your patterns).
