@@ -73,6 +73,62 @@ function leaderboard(limit = 20) {
     .slice(0, limit);
 }
 
+/* ---------- live rooms (in-memory, Server-Sent Events) ---------- */
+const rooms = {};
+
+function roomPublic(room) {
+  const players = {};
+  for (const pid of room.order) {
+    const p = room.players[pid];
+    players[pid] = { name: p.name, champId: p.champId, score: p.score, connected: p.connected, picked: !!(room.picks[room.round] && room.picks[room.round][pid]) };
+  }
+  return { id: room.id, status: room.status, target: room.target, round: room.round, order: room.order, players, matchWinner: room.matchWinner };
+}
+function broadcast(room, type, data) {
+  const payload = `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const s of room.streams) { try { s.res.write(payload); } catch {} }
+}
+const broadcastState = (room) => broadcast(room, "state", roomPublic(room));
+
+function recordLiveResult(room, winnerId) {
+  const [a, b] = room.order;
+  const pa = db.players[a] || upsertPlayer(a, room.players[a].name);
+  const pb = db.players[b] || upsertPlayer(b, room.players[b].name);
+  if (winnerId === a) { pa.wins++; pb.losses++; } else { pb.wins++; pa.losses++; }
+  db.games.push({ challengeId: "live:" + room.id, challengerId: a, challengerName: room.players[a].name, opponentId: b, opponentName: room.players[b].name, champChal: room.players[a].champId, champOpp: room.players[b].champId, pScore: room.players[a].score, cScore: room.players[b].score, winner: winnerId, at: now(), live: true });
+  if (db.games.length > 5000) db.games = db.games.slice(-5000);
+  save();
+}
+function resolveRound(room) {
+  const r = room.round, picks = room.picks[r], [a, b] = room.order;
+  const ma = picks[a], mb = picks[b];
+  let roundWinner = null;
+  if (ma !== mb) { roundWinner = BEATS[ma] === mb ? a : b; room.players[roundWinner].score++; }
+  room.history.push({ round: r, picks: { ...picks }, roundWinner });
+  const scores = { [a]: room.players[a].score, [b]: room.players[b].score };
+  const done = room.players[a].score >= room.target || room.players[b].score >= room.target;
+  let matchWinner = null, rivalry = null;
+  if (done) {
+    room.status = "finished";
+    matchWinner = room.players[a].score > room.players[b].score ? a : b;
+    room.matchWinner = matchWinner;
+    recordLiveResult(room, matchWinner);
+    rivalry = rivalryBetween(a, b);
+  } else room.round = r + 1;
+  room.updated = now();
+  broadcast(room, "round", { round: r, picks: { ...picks }, roundWinner, scores, done, matchWinner, rivalry });
+  if (!done) broadcastState(room);
+}
+
+setInterval(() => {
+  const t = now();
+  for (const id of Object.keys(rooms)) {
+    const room = rooms[id];
+    const idle = t - (room.updated || room.createdAt);
+    if ((room.streams.length === 0 && idle > 5 * 60 * 1000) || idle > 60 * 60 * 1000) delete rooms[id];
+  }
+}, 60 * 1000).unref?.();
+
 /* ---------- http helpers ---------- */
 function sendJSON(res, code, obj) {
   const body = JSON.stringify(obj);
@@ -152,6 +208,67 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && p === "/api/leaderboard") {
       return sendJSON(res, 200, { leaderboard: leaderboard(Number(url.searchParams.get("limit")) || 20) });
+    }
+
+    /* ---- live rooms ---- */
+    if (req.method === "POST" && p === "/api/room") {
+      const b = await readBody(req);
+      const me = upsertPlayer(b.playerId, b.name); save();
+      const id = uuid().slice(0, 6);
+      rooms[id] = { id, target: Math.min(Math.max((b.target | 0) || 5, 1), 9), status: "waiting", round: 1, order: [me.id], players: { [me.id]: { name: me.name, champId: String(b.champId || "").slice(0, 24), score: 0, connected: false } }, picks: {}, history: [], streams: [], matchWinner: null, createdAt: now(), updated: now() };
+      return sendJSON(res, 200, { roomId: id, playerId: me.id });
+    }
+    let m;
+    if ((m = p.match(/^\/api\/room\/([^/]+)$/)) && req.method === "GET") {
+      const room = rooms[m[1]]; if (!room) return sendJSON(res, 404, { error: "room not found" });
+      return sendJSON(res, 200, roomPublic(room));
+    }
+    if ((m = p.match(/^\/api\/room\/([^/]+)\/join$/)) && req.method === "POST") {
+      const room = rooms[m[1]]; if (!room) return sendJSON(res, 404, { error: "room not found" });
+      const b = await readBody(req); const me = upsertPlayer(b.playerId, b.name); save();
+      if (!room.order.includes(me.id)) {
+        if (room.order.length >= 2) return sendJSON(res, 409, { error: "room full" });
+        room.order.push(me.id);
+        room.players[me.id] = { name: me.name, champId: String(b.champId || "").slice(0, 24), score: 0, connected: false };
+        if (room.order.length === 2) room.status = "playing";
+      }
+      room.updated = now(); broadcastState(room);
+      return sendJSON(res, 200, { ok: true, target: room.target, playerId: me.id });
+    }
+    if ((m = p.match(/^\/api\/room\/([^/]+)\/events$/)) && req.method === "GET") {
+      const room = rooms[m[1]]; const pid = url.searchParams.get("player");
+      if (!room) return sendJSON(res, 404, { error: "room not found" });
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*", "X-Accel-Buffering": "no" });
+      res.write(":ok\n\n");
+      const stream = { res, pid }; room.streams.push(stream);
+      if (room.players[pid]) room.players[pid].connected = true;
+      room.updated = now(); broadcastState(room);
+      const hb = setInterval(() => { try { res.write(":ping\n\n"); } catch {} }, 20000);
+      req.on("close", () => {
+        clearInterval(hb);
+        room.streams = room.streams.filter((s) => s !== stream);
+        if (room.players[pid] && !room.streams.some((s) => s.pid === pid)) room.players[pid].connected = false;
+        broadcastState(room);
+      });
+      return;
+    }
+    if ((m = p.match(/^\/api\/room\/([^/]+)\/move$/)) && req.method === "POST") {
+      const room = rooms[m[1]]; if (!room) return sendJSON(res, 404, { error: "room not found" });
+      const b = await readBody(req);
+      if (room.status !== "playing") return sendJSON(res, 409, { error: "not playing" });
+      if (!MOVES.includes(b.move) || !room.players[b.playerId]) return sendJSON(res, 400, { error: "bad move" });
+      const r = room.round; room.picks[r] = room.picks[r] || {};
+      if (!room.picks[r][b.playerId]) {
+        room.picks[r][b.playerId] = b.move; room.updated = now();
+        if (room.order.length === 2 && room.order.every((pid) => room.picks[r][pid])) resolveRound(room);
+        else broadcastState(room);
+      }
+      return sendJSON(res, 200, { ok: true });
+    }
+    if ((m = p.match(/^\/api\/room\/([^/]+)\/leave$/)) && req.method === "POST") {
+      const room = rooms[m[1]];
+      if (room) { const b = await readBody(req); if (room.players[b.playerId]) room.players[b.playerId].connected = false; broadcastState(room); }
+      return sendJSON(res, 200, { ok: true });
     }
 
     return sendJSON(res, 404, { error: "not found" });

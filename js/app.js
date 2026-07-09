@@ -51,6 +51,7 @@ const el = {};
   "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
   "themeBtn", "challengeBanner", "lengthSection",
   "nameInput", "nameSaveBtn", "onlineNote",
+  "liveWait", "liveWaitTitle", "liveWaitSub", "liveCode", "liveCopyBtn", "liveCancelBtn",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
 el.resultTitle = document.getElementById("result-title");
@@ -136,7 +137,9 @@ function applyArena(id) {
 const SCREENS = ["home", "setup", "battle", "result", "profile"];
 let current = "home";
 function show(name) {
+  const prev = current;
   current = name;
+  if (prev === "battle" && name !== "battle" && live && !live.finished) teardownLive();
   document.body.dataset.screen = name;
   SCREENS.forEach((s) => {
     const node = document.getElementById("screen-" + s);
@@ -244,29 +247,37 @@ const setup = { champ: null, rivalId: "duelist", length: 5, mode: "ai" };
 
 function refreshSetupForMode() {
   const mode = setup.mode;
-  const isAi = mode === "ai", isPvp = mode === "pvp", isChal = mode === "challenge", isAccept = mode === "accept";
+  const isAi = mode === "ai", isPvp = mode === "pvp", isChal = mode === "challenge", isAccept = mode === "accept", isLive = mode === "live";
+  const liveJoin = isLive && !!pendingLive;
   if (el.rivalSection) el.rivalSection.hidden = !isAi;
-  if (el.lengthSection) el.lengthSection.hidden = isChal || isAccept;
+  if (el.lengthSection) el.lengthSection.hidden = isChal || isAccept || liveJoin;
   if (el.champSub) el.champSub.textContent =
     isPvp ? "Player 1 — pick your fighter. Player 2 gets a surprise challenger."
     : isChal ? "Pick your fighter, then set a gauntlet of throws for a friend to beat."
     : isAccept ? "Pick your champion, then out-read the gauntlet."
+    : liveJoin ? `Pick your champion to join ${pendingLive.hostName}'s live match.`
+    : isLive ? "Pick your champion and length, then invite a friend to a real-time match."
     : "This is you in the ring. Pick the face of your winning streak.";
-  // challenge banner
+  // banner (challenge accept OR live join)
   if (el.challengeBanner) {
     if (isAccept && pendingChallenge) {
       const foe = CHAMPIONS.find((c) => c.id === pendingChallenge.c);
       const who = pendingChallenge.online && pendingChallenge.name ? pendingChallenge.name : foe.name;
       el.challengeBanner.hidden = false;
       el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">🔗</span><img src="${foe.img}" alt=""/><div class="challenge-banner__body"><div class="challenge-banner__title">${who} laid down a gauntlet</div><div class="challenge-banner__sub">Best of ${pendingChallenge.m.length}${pendingChallenge.online ? " · online" : ""} · out-read their throws to win.</div></div>`;
+    } else if (liveJoin) {
+      el.challengeBanner.hidden = false;
+      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">⚡</span>${pendingLive.hostImg ? `<img src="${pendingLive.hostImg}" alt=""/>` : ""}<div class="challenge-banner__body"><div class="challenge-banner__title">${pendingLive.hostName} wants a live match</div><div class="challenge-banner__sub">Real-time · pick your champion and jump in.</div></div>`;
     } else el.challengeBanner.hidden = true;
   }
   const span = el.startBtn.querySelector("span");
-  if (span) span.textContent = isChal ? "Set your gauntlet" : isAccept ? "Accept challenge" : "Start the duel";
+  if (span) span.textContent = isChal ? "Set your gauntlet" : isAccept ? "Accept challenge" : liveJoin ? "Join match" : isLive ? "Create live room" : "Start the duel";
   updateSummary();
 }
 
 function selectMode(mode) {
+  if (mode === "live" && !net.online()) { toast("Live play needs the online server — see server/README."); Sound.tick(); return; }
+  if (mode !== "live") pendingLive = null;
   setup.mode = mode;
   $$(".mode", el.modeSwitch).forEach((b) => { const on = b.dataset.mode === mode; b.classList.toggle("is-selected", on); b.setAttribute("aria-checked", String(on)); });
   Sound.tick(); refreshSetupForMode();
@@ -337,6 +348,10 @@ function updateSummary() {
     const foe = pendingChallenge && CHAMPIONS.find((c) => c.id === pendingChallenge.c);
     const who = pendingChallenge && pendingChallenge.online && pendingChallenge.name ? pendingChallenge.name : (foe ? foe.name : "the");
     el.setupSummary.innerHTML = `Beat <b>${who}</b>'s gauntlet as <b>${setup.champ.name}</b>.`;
+  } else if (setup.mode === "live") {
+    el.setupSummary.innerHTML = pendingLive
+      ? `Join <b>${pendingLive.hostName}</b>'s live match as <b>${setup.champ.name}</b>.`
+      : `Host a live match as <b>${setup.champ.name}</b> · first to <b>${setup.length}</b>.`;
   } else {
     const r = RIVAL_BY_ID[setup.rivalId];
     el.setupSummary.innerHTML = `Playing as <b>${setup.champ.name}</b> vs <b>${r.name}</b> · first to <b>${setup.length}</b>.`;
@@ -357,6 +372,7 @@ function startMatch() {
   Sound.resume();
   if (setup.mode === "challenge") return startGauntlet();
   if (setup.mode === "accept") return startAccept();
+  if (setup.mode === "live") return startLive();
   const pvp = setup.mode === "pvp";
   Object.assign(match, {
     active: true, locked: false, round: 0, player: 0, cpu: 0, target: setup.length,
@@ -396,6 +412,7 @@ function throwMove(move) {
   if (!match.active || match.locked) return;
   if (match.mode === "challenge") gauntletThrow(move);
   else if (match.mode === "pvp") pvpMove(move);
+  else if (match.mode === "live") liveThrow(move);
   else playRound(move);
 }
 
@@ -507,6 +524,174 @@ function startAccept() {
   unlockMoves(); show("battle"); injectIcons(el.moves);
   // consume the challenge so a refresh won't replay it
   try { history.replaceState(null, "", location.pathname); } catch {}
+}
+
+/* --- Live: real-time online match (Server-Sent Events) --- */
+let live = null;       // active room state
+let liveES = null;     // EventSource
+let pendingLive = null; // guest arriving via #live= link
+
+function teardownLive() {
+  if (liveES) { try { liveES.close(); } catch {} liveES = null; }
+  if (live && live.id && live.myId && net.online()) net.leaveRoom(live.id, live.myId);
+  live = null;
+  if (el.liveWait) el.liveWait.hidden = true;
+}
+function showLiveWait(link, code) {
+  live._link = link;
+  el.liveWaitTitle.textContent = "Waiting for your rival…";
+  el.liveWaitSub.textContent = "Share this link. The match starts the moment they join.";
+  el.liveCode.hidden = false; el.liveCode.textContent = "Room " + code;
+  el.liveWait.hidden = false;
+}
+function prepLiveBattle(myChamp, target) {
+  Object.assign(match, {
+    active: true, locked: true, round: 0, player: 0, cpu: 0, target,
+    playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
+    mode: "live", online: true, myMoves: [], revealing: false, roundNo: 0,
+  });
+  el.playerAvatar.src = myChamp.img; el.playerAvatar.alt = myChamp.name; el.playerName.textContent = myChamp.name;
+  el.cpuAvatar.src = "img/icon-192.png"; el.cpuAvatar.alt = ""; el.cpuName.textContent = "Waiting…"; el.cpuTag.textContent = "Live";
+  el.cpuHandCaption.textContent = "Rival";
+  el.playerScore.textContent = "0"; el.cpuScore.textContent = "0";
+  el.targetLabel.textContent = `First to ${target}`;
+  buildPips(); resetHands();
+  el.historyList.innerHTML = `<li class="history__empty">First to ${target} takes the match. Good luck.</li>`;
+  el.verdict.className = "verdict"; el.verdict.textContent = "";
+  el.moves.classList.add("is-locked");
+  setStatus("Connecting…");
+  show("battle"); injectIcons(el.moves);
+}
+
+async function startLive() {
+  if (!setup.champ) return;
+  if (!net.online()) { toast("Live play needs the online server."); return; }
+  const me = await ensureIdentity(); if (!me) return;
+  if (pendingLive) return joinLive(pendingLive.id, me);
+  try {
+    const r = await net.createRoom(me.id, me.name, setup.champ.id, setup.length);
+    live = { id: r.roomId, myId: me.id, oppId: null, target: setup.length, status: "waiting", finished: false };
+    prepLiveBattle(setup.champ, setup.length);
+    showLiveWait(`${location.origin}${location.pathname}#live=${r.roomId}`, r.roomId);
+    connectRoom(r.roomId, me.id);
+  } catch { toast("Couldn't create a live room."); show("setup"); }
+}
+async function joinLive(id, me) {
+  try {
+    const rr = await net.joinRoom(id, me.id, me.name, setup.champ.id);
+    live = { id, myId: me.id, oppId: null, target: rr.target || 5, status: "playing", finished: false };
+    prepLiveBattle(setup.champ, live.target);
+    if (el.liveWait) el.liveWait.hidden = true;
+    connectRoom(id, me.id);
+    try { history.replaceState(null, "", location.pathname); } catch {}
+    pendingLive = null;
+  } catch { toast("Couldn't join — the room is full or gone."); show("home"); }
+}
+function connectRoom(id, myId) {
+  try {
+    liveES = new EventSource(net.roomEventsUrl(id, myId));
+    liveES.addEventListener("state", (e) => { try { handleLiveState(JSON.parse(e.data)); } catch {} });
+    liveES.addEventListener("round", (e) => { try { handleLiveRound(JSON.parse(e.data)); } catch {} });
+    liveES.onerror = () => { if (live && !live.finished) setStatus("Reconnecting…"); };
+  } catch { toast("Live connection failed."); }
+}
+function handleLiveState(s) {
+  if (!live || live.finished) return;
+  live.status = s.status; live.order = s.order; live.players = s.players; live.target = s.target;
+  const oppId = (s.order || []).find((x) => x !== live.myId);
+  live.oppId = oppId || live.oppId;
+  const meP = s.players[live.myId] || {}, oppP = (oppId && s.players[oppId]) || {};
+  match.player = meP.score || 0; match.cpu = oppP.score || 0; match.target = s.target;
+  el.playerScore.textContent = String(meP.score || 0); el.cpuScore.textContent = String(oppP.score || 0);
+  if (oppP.name) { el.cpuName.textContent = oppP.name; el.cpuHandCaption.textContent = oppP.name; }
+  el.cpuTag.textContent = oppId ? (oppP.connected ? "Live" : "Away") : "Live";
+  if (oppP.champId) { const c = CHAMPIONS.find((x) => x.id === oppP.champId); if (c) el.cpuAvatar.src = c.img; }
+  if ($$(".pip", el.pips).length !== s.target) buildPips();
+  paintPips();
+
+  if (s.status === "waiting") { el.moves.classList.add("is-locked"); if (el.liveWait) el.liveWait.hidden = false; }
+  else if (s.status === "playing") {
+    if (el.liveWait) el.liveWait.hidden = true;
+    if (!oppP.connected) { setStatus(`${oppP.name || "Rival"} disconnected — waiting…`); el.moves.classList.add("is-locked"); return; }
+    if (!live.revealing && !(meP.picked)) { unlockMoves(); setStatus(match.round === 0 ? "Make your move." : "Next round — make your move."); }
+    else if (meP.picked) { el.moves.classList.add("is-locked"); setStatus("Waiting for your rival…"); }
+  }
+}
+function handleLiveRound(d) {
+  if (!live || live.finished) return;
+  live.revealing = true; match.locked = true; el.moves.classList.add("is-locked");
+  const myMove = d.picks[live.myId], oppMove = d.picks[live.oppId];
+  const result = d.roundWinner === live.myId ? "win" : d.roundWinner === live.oppId ? "lose" : "draw";
+  live.roundNo = d.round; match.round = d.round;
+  if (myMove) match.myMoves.push(myMove);
+
+  setGlyph(el.playerHand, myMove); setGlyph(el.cpuHand, oppMove);
+  el.playerHand.dataset.state = "reveal"; el.cpuHand.dataset.state = "reveal";
+  el.playerHand.classList.remove("win", "lose"); el.cpuHand.classList.remove("win", "lose");
+  if (result === "win") { el.playerHand.classList.add("win"); el.cpuHand.classList.add("lose"); }
+  else if (result === "lose") { el.cpuHand.classList.add("win"); el.playerHand.classList.add("lose"); }
+  match.player = d.scores[live.myId]; match.cpu = d.scores[live.oppId];
+  bumpScores(); paintPips();
+  const vmap = { win: { cls: "v-win", txt: "You win!", snd: Sound.win }, lose: { cls: "v-lose", txt: "Rival wins", snd: Sound.lose }, draw: { cls: "v-draw", txt: "Draw", snd: Sound.draw } }[result];
+  el.verdict.className = `verdict show ${vmap.cls}`; el.verdict.textContent = vmap.txt; vmap.snd();
+  setStatus({ win: `Your ${LABEL[myMove]} beats ${LABEL[oppMove]}.`, lose: `Their ${LABEL[oppMove]} beats your ${LABEL[myMove]}.`, draw: `Both threw ${LABEL[myMove]}.` }[result]);
+  addHistory(d.round, myMove, oppMove, result);
+
+  if (d.done) { setTimeout(() => endLive(d), 1150); }
+  else setTimeout(() => {
+    resetHands(); el.verdict.className = "verdict"; el.verdict.textContent = ""; live.revealing = false;
+    const meP = (live.players && live.players[live.myId]) || {};
+    if (!meP.picked) { unlockMoves(); setStatus("Next round — make your move."); }
+  }, 1200);
+}
+function liveThrow(move) {
+  if (!live || live.status !== "playing" || live.revealing || match.locked) return;
+  match.locked = true; el.moves.classList.add("is-locked"); Sound.pick();
+  const picked = $(`.move[data-move="${move}"]`, el.moves); if (picked) picked.classList.add("is-picked");
+  setStatus("Waiting for your rival…");
+  net.sendMove(live.id, live.myId, move).catch(() => { toast("Move failed — check your connection."); match.locked = false; el.moves.classList.remove("is-locked"); });
+}
+function endLive(d) {
+  live.finished = true; match.active = false;
+  const won = d.matchWinner === live.myId;
+  const oppName = ((live.players && live.players[live.oppId]) || {}).name || "Rival";
+  const oppChampId = ((live.players && live.players[live.oppId]) || {}).champId;
+  const oppChamp = CHAMPIONS.find((c) => c.id === oppChampId);
+
+  const ctx = { won, playerScore: match.player, cpuScore: match.cpu, rounds: live.roundNo, flawless: won && match.cpu === 0, comeback: won && match.maxDeficit >= 2, rivalStars: 3, moves: match.myMoves.slice(), champId: setup.champ.id };
+  const summary = recordMatch(ctx);
+
+  if (el.progressBlock) el.progressBlock.hidden = false;
+  if (el.readsPanel) el.readsPanel.hidden = true;
+  el.resultCard.dataset.outcome = won ? "win" : "lose";
+  el.resultBadge.textContent = won ? "👑" : "🥊";
+  el.resultKicker.textContent = "Live match · online";
+  el.resultTitle.textContent = won ? "Victory" : "Defeated";
+  el.resultLine.textContent = won ? `You beat ${oppName} in a live duel.` : `${oppName} took the live duel. Rematch?`;
+  el.resultScoreline.innerHTML = `<span class="me">${match.player}</span><span class="sep">—</span><span class="cpu">${match.cpu}</span>`;
+  el.resultStats.innerHTML = `
+    <div class="rstat"><div class="rstat__num">${live.roundNo}</div><div class="rstat__label">Rounds</div></div>
+    <div class="rstat"><div class="rstat__num">${won ? "W" : "L"}</div><div class="rstat__label">Result</div></div>
+    <div class="rstat"><div class="rstat__num">${profile.career.streak}</div><div class="rstat__label">Win streak</div></div>`;
+
+  // shared head-to-head from the final event
+  if (d.rivalry) {
+    const rv = d.rivalry;
+    const meWins = rv.a === live.myId ? rv.aWins : rv.bWins;
+    const themWins = rv.a === live.myId ? rv.bWins : rv.aWins;
+    el.onlineNote.hidden = false;
+    el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${oppName}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
+  } else el.onlineNote.hidden = true;
+
+  renderProgress(summary);
+  const taunts = TAUNTS[won ? "win" : "lose"];
+  lastMatch = { mode: "ai", won, winner: won ? setup.champ.name : oppName, p1name: setup.champ.name, p1img: setup.champ.img, p2name: oppName, p2img: oppChamp ? oppChamp.img : "img/icon-192.png", pScore: match.player, cScore: match.cpu, taunt: taunts[live.roundNo % taunts.length] };
+
+  if (liveES) { try { liveES.close(); } catch {} liveES = null; }
+  show("result"); injectIcons(el.resultCard); renderTopbar();
+  if (won) { Confetti.burst(160); Sound.fanfare(); } else Sound.defeat();
+  announce(won ? "You won the live match." : "You lost the live match.");
+  if (summary.leveledUp) { setTimeout(() => Sound.level(), 500); setTimeout(() => showUnlocks(summary), 900); }
 }
 
 function buildPips() {
@@ -1164,6 +1349,8 @@ function bind() {
   el.rematchBtn.addEventListener("click", startMatch);
   el.quitBtn.addEventListener("click", forfeit);
   if (el.passBtn) el.passBtn.addEventListener("click", passReady);
+  if (el.liveCopyBtn) el.liveCopyBtn.addEventListener("click", async () => { const link = live && live._link; if (!link) return; try { await navigator.clipboard.writeText(link); toast("Invite link copied!"); } catch { toast("Copy the link from your address bar."); } });
+  if (el.liveCancelBtn) el.liveCancelBtn.addEventListener("click", () => { teardownLive(); match.active = false; show("setup"); });
   $$(".move", el.moves).forEach((m) => m.addEventListener("click", () => throwMove(m.dataset.move)));
 
   const howto = document.getElementById("howtoSheet");
@@ -1222,11 +1409,30 @@ async function boot() {
   buildRivalPicker();
   bind();
   renderTopbar();
-  pendingChallenge = await resolvePending();
-  if (pendingChallenge) {
-    setup.mode = "accept"; show("setup");
-    if (pendingChallenge.online && !hasIdentity()) ensureIdentity();
-  } else show("home");
+  let routed = false;
+  const liveM = (location.hash || "").match(/[#&]live=([A-Za-z0-9]+)/);
+  if (liveM) {
+    if (!net.online()) toast("Live play needs the online server.");
+    else {
+      try {
+        const room = await net.getRoom(liveM[1]);
+        if (room && room.status !== "finished" && (room.order || []).length < 2) {
+          const hostId = room.order[0], hp = room.players[hostId], hc = CHAMPIONS.find((c) => c.id === hp.champId);
+          pendingLive = { id: liveM[1], hostName: hp.name, hostImg: hc ? hc.img : "" };
+          setup.mode = "live"; show("setup");
+          if (!hasIdentity()) ensureIdentity();
+          routed = true;
+        } else toast("That live match is full or already finished.");
+      } catch { toast("Live match not found."); }
+    }
+  }
+  if (!routed) {
+    pendingChallenge = await resolvePending();
+    if (pendingChallenge) {
+      setup.mode = "accept"; show("setup");
+      if (pendingChallenge.online && !hasIdentity()) ensureIdentity();
+    } else show("home");
+  }
   requestAnimationFrame(() => $$(".reveal").forEach((r) => { r.style.animationDelay = (parseInt(r.dataset.r || "1", 10) - 1) * 90 + "ms"; r.classList.add("in"); }));
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

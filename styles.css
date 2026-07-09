@@ -635,6 +635,12 @@ body:not([data-screen="loading"]) [data-screen] { /* noop */ }
 .passcover__title b { background: var(--grad-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .passcover__sub { color: var(--text-soft); margin-bottom: 22px; }
 
+/* Live waiting overlay */
+.live-pulse { animation: livePulse 1.3s var(--ease) infinite; }
+@keyframes livePulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.14); opacity: .7; } }
+.live-code { display: inline-block; margin: 4px auto 18px; padding: 8px 18px; border-radius: var(--r-full); border: 1px dashed var(--line-2); background: var(--surface); font-family: var(--display); font-weight: 700; letter-spacing: .12em; color: var(--text-soft); }
+.live-wait__actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
 /* Share sheet */
 .share-preview { width: 100%; border-radius: var(--r-md); border: 1px solid var(--line-2); margin: 4px 0 18px; box-shadow: var(--shadow-md); background: var(--bg-2); aspect-ratio: 1200 / 630; }
 .share-actions { display: flex; gap: 10px; flex-wrap: wrap; }

@@ -30,3 +30,16 @@ export const submitResult = (challengeId, opponentId, opponentName, champId, pSc
 export const getRivalries = (playerId) => api("/api/rivalries?player=" + encodeURIComponent(playerId));
 
 export const getLeaderboard = () => api("/api/leaderboard");
+
+/* ---- live rooms ---- */
+export const createRoom = (playerId, name, champId, target) =>
+  api("/api/room", { method: "POST", body: JSON.stringify({ playerId, name, champId, target }) });
+export const getRoom = (id) => api("/api/room/" + encodeURIComponent(id));
+export const joinRoom = (id, playerId, name, champId) =>
+  api("/api/room/" + encodeURIComponent(id) + "/join", { method: "POST", body: JSON.stringify({ playerId, name, champId }) });
+export const sendMove = (id, playerId, move) =>
+  api("/api/room/" + encodeURIComponent(id) + "/move", { method: "POST", body: JSON.stringify({ playerId, move }) });
+export const leaveRoom = (id, playerId) =>
+  api("/api/room/" + encodeURIComponent(id) + "/leave", { method: "POST", body: JSON.stringify({ playerId }) }).catch(() => {});
+export const roomEventsUrl = (id, playerId) =>
+  API_BASE + "/api/room/" + encodeURIComponent(id) + "/events?player=" + encodeURIComponent(playerId);

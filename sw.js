@@ -1,5 +1,5 @@
 /* RIVALS service worker — offline app shell + runtime asset cache */
-const VERSION = "rivals-v2";
+const VERSION = "rivals-v3";
 const CORE = [
   "./",
   "./index.html",

@@ -126,6 +126,9 @@
           <button class="mode" role="radio" aria-checked="false" data-mode="challenge" type="button">
             <span class="mode__ic">🔗</span><span class="mode__title">Challenge</span><span class="mode__sub">Send a friend a gauntlet</span>
           </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="live" type="button">
+            <span class="mode__ic">⚡</span><span class="mode__title">Live</span><span class="mode__sub">Real-time online match</span>
+          </button>
         </div>
 
         <h2 class="section-title" id="setup-title">Choose your champion</h2>
@@ -237,6 +240,20 @@
             <h3 class="passcover__title">Pass to <b id="passName">Player 2</b></h3>
             <p class="passcover__sub">Keep your move secret. Hand over the device, then tap when you're ready.</p>
             <button class="btn btn--primary btn--lg" id="passBtn" type="button">I'm ready</button>
+          </div>
+        </div>
+
+        <!-- Live: waiting for opponent -->
+        <div class="passcover" id="liveWait" hidden>
+          <div class="passcover__card">
+            <span class="passcover__ic live-pulse">⚡</span>
+            <h3 class="passcover__title" id="liveWaitTitle">Waiting for your rival…</h3>
+            <p class="passcover__sub" id="liveWaitSub">Share this link. The match starts the moment they join.</p>
+            <div class="live-code" id="liveCode" hidden></div>
+            <div class="live-wait__actions">
+              <button class="btn btn--primary" id="liveCopyBtn" type="button">Copy invite link</button>
+              <button class="btn btn--ghost" id="liveCancelBtn" type="button">Cancel</button>
+            </div>
           </div>
         </div>
 

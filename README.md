@@ -9,10 +9,12 @@ self‑contained static web app — no framework, no build step, no backend.
 ## Features
 
 ### Play
-- **Three ways to play**
+- **Four ways to play**
   - **vs Rival** — face the AI.
   - **Pass & Play** — two players share one device.
   - **Challenge** — set a gauntlet of throws and send a friend a link to beat.
+  - **Live** — real-time 1v1 online match (with the backend running): share an
+    invite link and play simultaneous, server-judged rounds.
 - **Five AI personalities**, each with a readable "tell" and star difficulty:
   Rookie, Mirror (copies your last move), Duelist (pure chance),
   Cycler (rotates its throws), and Grandmaster (counters your patterns).
@@ -36,9 +38,10 @@ self‑contained static web app — no framework, no build step, no backend.
 - **Challenge links** — set a gauntlet of throws and send a friend a link;
   they play it on their own device.
 - **Optional online mode** — deploy the tiny backend in [`server/`](server/)
-  and set `API_BASE` in `js/config.js` to unlock a **shared, persistent
-  head‑to‑head record** and a **global leaderboard** both players see. Leave
-  it blank and everything runs fully offline (links just embed the moves).
+  and set `API_BASE` in `js/config.js` to unlock **real-time live matches**, a
+  **shared, persistent head‑to‑head record**, and a **global leaderboard** both
+  players see. Leave it blank and everything runs fully offline (challenge
+  links just embed the moves, stats stay on‑device).
 
 ### Polish
 - **Installable PWA** — add to home screen and **play fully offline**.
