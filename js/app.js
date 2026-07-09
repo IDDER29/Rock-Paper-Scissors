@@ -48,7 +48,7 @@ const el = {};
   "readsPanel", "readsRival", "readsBody", "readsTip",
   "modeSwitch", "rivalSection", "champSub", "passCover", "passName", "passBtn",
   "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
-  "themeBtn",
+  "themeBtn", "challengeBanner", "lengthSection",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
 el.resultTitle = document.getElementById("result-title");
@@ -144,7 +144,7 @@ function show(name) {
   });
   window.scrollTo({ top: 0 });
   if (name === "home") renderHome();
-  if (name === "setup") { renderRoster(); updateSummary(); }
+  if (name === "setup") { renderRoster(); refreshSetupForMode(); }
   if (name === "profile") renderProfile();
   renderTopbar();
 }
@@ -188,16 +188,57 @@ function renderDaily() {
     <span class="daily__count">${Math.min(d.progress, d.target)} / ${d.target}</span>`;
 }
 
+/* ---------- Challenge link encode/decode ---------- */
+const CHALLENGE_ROUNDS = 5;
+function encodeChallenge(obj) {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  catch { return ""; }
+}
+function decodeChallenge(str) {
+  try {
+    const s = str.replace(/-/g, "+").replace(/_/g, "/");
+    const o = JSON.parse(decodeURIComponent(escape(atob(s))));
+    if (o && o.c && Array.isArray(o.m) && o.m.length && o.m.every((m) => MOVES.includes(m))) return o;
+  } catch {}
+  return null;
+}
+function parseChallengeFromUrl() {
+  const m = (location.hash || "").match(/[#&]c=([^&]+)/);
+  if (m) { const o = decodeChallenge(m[1]); if (o && CHAMPIONS.find((c) => c.id === o.c)) return o; }
+  return null;
+}
+let pendingChallenge = null;
+
 /* ---------- Setup ---------- */
 const setup = { champ: null, rivalId: "duelist", length: 5, mode: "ai" };
+
+function refreshSetupForMode() {
+  const mode = setup.mode;
+  const isAi = mode === "ai", isPvp = mode === "pvp", isChal = mode === "challenge", isAccept = mode === "accept";
+  if (el.rivalSection) el.rivalSection.hidden = !isAi;
+  if (el.lengthSection) el.lengthSection.hidden = isChal || isAccept;
+  if (el.champSub) el.champSub.textContent =
+    isPvp ? "Player 1 — pick your fighter. Player 2 gets a surprise challenger."
+    : isChal ? "Pick your fighter, then set a gauntlet of throws for a friend to beat."
+    : isAccept ? "Pick your champion, then out-read the gauntlet."
+    : "This is you in the ring. Pick the face of your winning streak.";
+  // challenge banner
+  if (el.challengeBanner) {
+    if (isAccept && pendingChallenge) {
+      const foe = CHAMPIONS.find((c) => c.id === pendingChallenge.c);
+      el.challengeBanner.hidden = false;
+      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">🔗</span><img src="${foe.img}" alt=""/><div class="challenge-banner__body"><div class="challenge-banner__title">${foe.name} laid down a gauntlet</div><div class="challenge-banner__sub">Best of ${pendingChallenge.m.length} · out-read their throws to win.</div></div>`;
+    } else el.challengeBanner.hidden = true;
+  }
+  const span = el.startBtn.querySelector("span");
+  if (span) span.textContent = isChal ? "Set your gauntlet" : isAccept ? "Accept challenge" : "Start the duel";
+  updateSummary();
+}
 
 function selectMode(mode) {
   setup.mode = mode;
   $$(".mode", el.modeSwitch).forEach((b) => { const on = b.dataset.mode === mode; b.classList.toggle("is-selected", on); b.setAttribute("aria-checked", String(on)); });
-  const pvp = mode === "pvp";
-  if (el.rivalSection) el.rivalSection.hidden = pvp;
-  if (el.champSub) el.champSub.textContent = pvp ? "Player 1 — pick your fighter. Player 2 gets a surprise challenger." : "This is you in the ring. Pick the face of your winning streak.";
-  Sound.tick(); updateSummary();
+  Sound.tick(); refreshSetupForMode();
 }
 
 function renderRoster() {
@@ -259,6 +300,11 @@ function updateSummary() {
   if (!setup.champ) { el.setupSummary.innerHTML = "Pick a champion to continue."; el.startBtn.disabled = true; return; }
   if (setup.mode === "pvp") {
     el.setupSummary.innerHTML = `Two players, one device · first to <b>${setup.length}</b>.`;
+  } else if (setup.mode === "challenge") {
+    el.setupSummary.innerHTML = `Set a best-of-${CHALLENGE_ROUNDS} gauntlet as <b>${setup.champ.name}</b> for a friend to beat.`;
+  } else if (setup.mode === "accept") {
+    const foe = pendingChallenge && CHAMPIONS.find((c) => c.id === pendingChallenge.c);
+    el.setupSummary.innerHTML = `Beat <b>${foe ? foe.name : "the"}</b>'s gauntlet as <b>${setup.champ.name}</b>.`;
   } else {
     const r = RIVAL_BY_ID[setup.rivalId];
     el.setupSummary.innerHTML = `Playing as <b>${setup.champ.name}</b> vs <b>${r.name}</b> · first to <b>${setup.length}</b>.`;
@@ -271,17 +317,19 @@ const match = {
   active: false, locked: false, round: 0, player: 0, cpu: 0, target: 5,
   playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
   mode: "ai", phase: "p1", p1move: null, p1name: "Player 1", p2name: "Player 2",
-  p1img: "", p2img: "",
+  p1img: "", p2img: "", fixedRounds: 0, challengeMoves: [], gauntletMoves: [],
 };
 
 function startMatch() {
   if (!setup.champ) return;
   Sound.resume();
+  if (setup.mode === "challenge") return startGauntlet();
+  if (setup.mode === "accept") return startAccept();
   const pvp = setup.mode === "pvp";
   Object.assign(match, {
     active: true, locked: false, round: 0, player: 0, cpu: 0, target: setup.length,
     playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
-    mode: setup.mode, phase: "p1", p1move: null,
+    mode: setup.mode, phase: "p1", p1move: null, fixedRounds: 0,
   });
 
   const p1 = setup.champ;
@@ -314,7 +362,8 @@ function startMatch() {
 /* dispatch a move click/keypress to the right handler */
 function throwMove(move) {
   if (!match.active || match.locked) return;
-  if (match.mode === "pvp") pvpMove(move);
+  if (match.mode === "challenge") gauntletThrow(move);
+  else if (match.mode === "pvp") pvpMove(move);
   else playRound(move);
 }
 
@@ -341,6 +390,80 @@ function passReady() {
   match.phase = "p2";
   unlockMoves();
   setStatus(`${match.p2name} — make your move`);
+}
+
+/* --- Challenge: set a gauntlet (record N of your throws) --- */
+function startGauntlet() {
+  const p1 = setup.champ;
+  Object.assign(match, {
+    active: true, locked: false, round: 0, player: 0, cpu: 0, target: 99,
+    playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
+    mode: "challenge", fixedRounds: CHALLENGE_ROUNDS, gauntletMoves: [],
+    p1name: p1.name, p1img: p1.img, p2name: "Your friend", p2img: "img/icon-192.png",
+  });
+  el.playerAvatar.src = p1.img; el.playerAvatar.alt = p1.name; el.playerName.textContent = p1.name;
+  el.cpuAvatar.src = "img/icon-192.png"; el.cpuAvatar.alt = ""; el.cpuName.textContent = "Your friend"; el.cpuTag.textContent = "Awaiting";
+  el.cpuHandCaption.textContent = "Your friend";
+  el.playerScore.textContent = "0"; el.cpuScore.textContent = "0";
+  el.targetLabel.textContent = `Gauntlet · ${CHALLENGE_ROUNDS} throws`;
+  match.target = 99; buildPips(); resetHands();
+  el.pips.innerHTML = ""; for (let i = 0; i < CHALLENGE_ROUNDS; i++) { const s = document.createElement("span"); s.className = "pip"; el.pips.appendChild(s); }
+  el.historyList.innerHTML = `<li class="history__empty">Lock in your throws — your friend will play against them.</li>`;
+  el.verdict.className = "verdict"; el.verdict.textContent = "";
+  if (el.passCover) el.passCover.hidden = true;
+  setStatus(`Throw 1 of ${CHALLENGE_ROUNDS} — set your gauntlet.`);
+  unlockMoves(); show("battle"); injectIcons(el.moves);
+}
+function gauntletThrow(move) {
+  if (match.locked) return;
+  match.gauntletMoves.push(move);
+  lockMoves(); Sound.pick();
+  const picked = $(`.move[data-move="${move}"]`, el.moves); if (picked) picked.classList.add("is-picked");
+  setGlyph(el.playerHand, move); el.playerHand.dataset.state = "reveal"; el.playerHand.classList.add("win");
+  const idx = match.gauntletMoves.length;
+  const pip = $$(".pip", el.pips)[idx - 1]; if (pip) pip.classList.add("p-win");
+  const li = document.createElement("li"); li.className = "round";
+  li.innerHTML = `<span class="round__no">${idx}</span><span class="round__throws">${miniIcon(move)}</span><span class="round__result win">Set</span>`;
+  const empty = el.historyList.querySelector(".history__empty"); if (empty) empty.remove();
+  el.historyList.prepend(li);
+  el.verdict.className = "verdict show v-win"; el.verdict.textContent = LABEL[move];
+  if (idx >= CHALLENGE_ROUNDS) { setStatus("Gauntlet set!"); setTimeout(finishGauntlet, 800); return; }
+  setStatus(`Throw ${idx + 1} of ${CHALLENGE_ROUNDS} — keep them guessing.`);
+  setTimeout(() => { el.playerHand.classList.remove("win"); setGlyph(el.playerHand, "question"); el.playerHand.dataset.state = "idle"; el.verdict.className = "verdict"; el.verdict.textContent = ""; unlockMoves(); }, 800);
+}
+function finishGauntlet() {
+  match.active = false;
+  const payload = { v: 1, c: setup.champ.id, m: match.gauntletMoves.slice() };
+  const link = `${location.origin}${location.pathname}#c=${encodeChallenge(payload)}`;
+  openShareChallenge(link);
+}
+
+/* --- Challenge: accept & play against a recorded gauntlet --- */
+function startAccept() {
+  if (!pendingChallenge) return;
+  const p1 = setup.champ;
+  const foe = CHAMPIONS.find((c) => c.id === pendingChallenge.c);
+  const moves = pendingChallenge.m.slice();
+  Object.assign(match, {
+    active: true, locked: false, round: 0, player: 0, cpu: 0, target: 99,
+    playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
+    mode: "accept", fixedRounds: moves.length, challengeMoves: moves,
+    p1name: p1.name, p1img: p1.img, p2name: foe.name, p2img: foe.img,
+  });
+  el.playerAvatar.src = p1.img; el.playerAvatar.alt = p1.name; el.playerName.textContent = p1.name;
+  el.cpuAvatar.src = foe.img; el.cpuAvatar.alt = foe.name; el.cpuName.textContent = foe.name; el.cpuTag.textContent = "Challenger";
+  el.cpuHandCaption.textContent = foe.name;
+  el.playerScore.textContent = "0"; el.cpuScore.textContent = "0";
+  el.targetLabel.textContent = `Gauntlet · best of ${moves.length}`;
+  el.pips.innerHTML = ""; for (let i = 0; i < moves.length; i++) { const s = document.createElement("span"); s.className = "pip"; el.pips.appendChild(s); }
+  resetHands();
+  el.historyList.innerHTML = `<li class="history__empty">Beat the gauntlet — out-read every throw.</li>`;
+  el.verdict.className = "verdict"; el.verdict.textContent = "";
+  if (el.passCover) el.passCover.hidden = true;
+  setStatus("Round 1 — make your move.");
+  unlockMoves(); show("battle"); injectIcons(el.moves);
+  // consume the challenge so a refresh won't replay it
+  try { history.replaceState(null, "", location.pathname); } catch {}
 }
 
 function buildPips() {
@@ -398,7 +521,7 @@ function playRound(playerMove) {
   if (!match.active || match.locked) return;
   lockMoves(); match.round++;
   match.playerHistory.push(playerMove);
-  const cpuMove = cpuChoose();
+  const cpuMove = match.mode === "accept" ? match.challengeMoves[match.round - 1] : cpuChoose();
   match.cpuHistory.push(cpuMove);
   const result = judge(playerMove, cpuMove);
   match.rounds.push({ p: playerMove, c: cpuMove, result });
@@ -455,10 +578,12 @@ function revealRound(playerMove, cpuMove, result) {
   announce(`Round ${match.round}: ${vmap.txt}. ${flavour} Score ${match.player} to ${match.cpu}.`);
   addHistory(match.round, playerMove, cpuMove, result);
 
-  if (match.player >= match.target || match.cpu >= match.target) setTimeout(endMatch, 1050);
+  const over = (match.fixedRounds && match.round >= match.fixedRounds) || match.player >= match.target || match.cpu >= match.target;
+  if (over) setTimeout(endMatch, 1050);
   else setTimeout(() => {
     resetHands(); el.verdict.className = "verdict"; el.verdict.textContent = ""; unlockMoves();
     if (pvp) { match.phase = "p1"; setStatus(`${match.p1name} — make your move`); }
+    else if (match.mode === "accept") setStatus(`Round ${match.round + 1} — make your move.`);
     else setStatus("Next round — make your move.");
   }, 1150);
 }
@@ -482,6 +607,7 @@ function endMatch() {
   match.active = false;
   if (el.passCover) el.passCover.hidden = true;
   if (match.mode === "pvp") return endMatchPvp();
+  if (match.mode === "accept") return endMatchChallenge();
 
   const won = match.player > match.cpu;
   const flawless = won && match.cpu === 0;
@@ -493,6 +619,7 @@ function endMatch() {
   const ctx = {
     won, playerScore: match.player, cpuScore: match.cpu, rounds: match.round,
     flawless, comeback, rivalStars: rival.stars, moves: match.playerHistory.slice(),
+    champId: setup.champ.id,
   };
   const summary = recordMatch(ctx);
 
@@ -558,6 +685,49 @@ function endMatchPvp() {
   injectIcons(el.resultCard);
   Confetti.burst(160); Sound.fanfare();
   announce(`${winner} won the match.`);
+}
+
+/* Challenge (accept) match end — records with XP + challenge W/L */
+function endMatchChallenge() {
+  const won = match.player > match.cpu;
+  const tie = match.player === match.cpu;
+  const foeName = match.p2name;
+
+  const ctx = {
+    won, playerScore: match.player, cpuScore: match.cpu, rounds: match.round,
+    flawless: won && match.cpu === 0, comeback: won && match.maxDeficit >= 2,
+    rivalStars: 2, moves: match.playerHistory.slice(), champId: setup.champ.id, challenge: true,
+  };
+  const summary = recordMatch(ctx);
+
+  if (el.progressBlock) el.progressBlock.hidden = false;
+  if (el.readsPanel) el.readsPanel.hidden = true;
+
+  el.resultCard.dataset.outcome = won ? "win" : tie ? "draw" : "lose";
+  el.resultBadge.textContent = won ? "🏆" : tie ? "🤝" : "🥊";
+  el.resultKicker.textContent = "Challenge · Gauntlet";
+  el.resultTitle.textContent = won ? "Gauntlet beaten!" : tie ? "Dead heat" : "Gauntlet holds";
+  el.resultLine.textContent = won
+    ? `You out-read ${foeName}'s gauntlet ${match.player}–${match.cpu}. Send one back!`
+    : tie ? `Locked at ${match.player}–${match.cpu} against ${foeName}. So close.`
+    : `${foeName}'s gauntlet held ${match.cpu}–${match.player}. Run it back.`;
+  el.resultScoreline.innerHTML = `<span class="me">${match.player}</span><span class="sep">—</span><span class="cpu">${match.cpu}</span>`;
+  const draws = match.round - (match.player + match.cpu);
+  el.resultStats.innerHTML = `
+    <div class="rstat"><div class="rstat__num">${match.round}</div><div class="rstat__label">Rounds</div></div>
+    <div class="rstat"><div class="rstat__num">${draws}</div><div class="rstat__label">Draws</div></div>
+    <div class="rstat"><div class="rstat__num">${profile.career.challengesWon}</div><div class="rstat__label">Challenges won</div></div>`;
+
+  renderProgress(summary);
+  const taunts = TAUNTS[won ? "win" : "lose"];
+  lastMatch = { mode: "ai", won, winner: won ? setup.champ.name : foeName,
+    p1name: setup.champ.name, p1img: setup.champ.img, p2name: foeName, p2img: match.p2img,
+    pScore: match.player, cScore: match.cpu, taunt: taunts[match.round % taunts.length] };
+
+  show("result"); injectIcons(el.resultCard); renderTopbar();
+  if (won) { Confetti.burst(160); Sound.fanfare(); } else Sound.defeat();
+  announce(won ? "You beat the gauntlet." : "The gauntlet held.");
+  if (summary.leveledUp) { setTimeout(() => Sound.level(), 500); setTimeout(() => showUnlocks(summary), 900); }
 }
 
 function renderProgress(s) {
@@ -627,6 +797,20 @@ function showUnlocks(s) {
 }
 
 /* ---------- Profile screen ---------- */
+function leaderboardHTML(c) {
+  const rows = CHAMPIONS
+    .map((ch) => ({ ch, plays: c.playsByChamp[ch.id] || 0, wins: c.winsByChamp[ch.id] || 0 }))
+    .filter((x) => x.plays > 0)
+    .sort((a, b) => b.wins - a.wins || b.wins / b.plays - a.wins / a.plays || b.plays - a.plays)
+    .slice(0, 6);
+  if (!rows.length) return `<div class="career__empty"><span>🏅</span><div>Play some matches to rank your champions here.</div></div>`;
+  const medals = ["🥇", "🥈", "🥉"];
+  return `<ol class="lb">${rows.map((r, i) => {
+    const pct = Math.round((r.wins / r.plays) * 100);
+    return `<li class="lb__row"><span class="lb__rank">${medals[i] || i + 1}</span><img class="lb__av" src="${r.ch.img}" alt="" loading="lazy"/><span class="lb__name">${r.ch.name}</span><span class="lb__bar"><i style="width:${pct}%"></i></span><span class="lb__stat"><b>${r.wins}</b>/${r.plays} · ${pct}%</span></li>`;
+  }).join("")}</ol>`;
+}
+
 function renderProfile() {
   if (!el.profileBody) return;
   const c = profile.career, info = levelInfo();
@@ -668,6 +852,11 @@ function renderProfile() {
           return `<div class="ach ${got ? "is-got" : ""}" title="${a.desc}"><span class="ach__ic">${got ? a.icon : ICONS.lock}</span><span class="ach__name">${a.name}</span><span class="ach__desc">${a.desc}</span></div>`; }).join("")}
       </div>
     </div>
+    <div class="prof-section">
+      <h3 class="panel__title">Champion leaderboard <span class="muted">${(c.challengesWon || 0)}W / ${(c.challengesLost || 0)}L in challenges</span></h3>
+      ${leaderboardHTML(c)}
+    </div>
+
     <div class="prof-section">
       <h3 class="panel__title">Champions <span class="muted">${profile.unlocks.champions.length}/${CHAMPIONS.length}</span></h3>
       <div class="gallery">
@@ -746,34 +935,64 @@ async function drawMatchCard() {
 }
 const canvasToBlob = (cv) => new Promise((res) => cv.toBlob(res, "image/png"));
 
-async function openShare() {
-  const sheet = document.getElementById("shareSheet"); if (!sheet || !lastMatch) return;
-  Sound.tick();
-  const cv = await drawMatchCard(); if (!cv) return;
-  sheet._canvas = cv;
+async function drawChallengeCard(champ, roundsN) {
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch {}
+  const W = 1200, H = 630, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d");
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#161036"); bg.addColorStop(1, "#0a0b14");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W / 2, 60, 40, W / 2, 60, 780);
+  glow.addColorStop(0, "rgba(139,107,255,.4)"); glow.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = "#f3f4fb"; g.font = '700 40px "Space Grotesk", system-ui, sans-serif'; g.fillText("RIVALS", 64, 92);
+  g.font = '500 22px Inter, system-ui, sans-serif'; g.fillStyle = "#8186a3"; g.fillText("ROCK · PAPER · SCISSORS", 66, 122);
+  g.textAlign = "center";
+  g.font = '700 76px "Space Grotesk", system-ui, sans-serif'; g.fillStyle = "#b49bff";
+  g.fillText("BEAT MY GAUNTLET", W / 2, 240);
+  const img = await loadImg(champ.img); drawAvatarCircle(g, img, W / 2, 400, 118, "#8b6bff");
+  g.font = '600 34px Inter, system-ui, sans-serif'; g.fillStyle = "#f3f4fb"; g.fillText(champ.name, W / 2, 560);
+  g.font = 'italic 26px Inter, system-ui, sans-serif'; g.fillStyle = "#b9bcd0";
+  g.fillText(`Best of ${roundsN} — open the link and out-read me.`, W / 2, 602);
+  g.textAlign = "left";
+  return cv;
+}
+
+let shareCtx = { kind: "result", link: "" };
+function openShareWith(cv, ctx) {
+  const sheet = document.getElementById("shareSheet"); if (!sheet || !cv) return;
+  sheet._canvas = cv; shareCtx = ctx;
   el.sharePreview.src = cv.toDataURL("image/png");
-  const canShare = !!(navigator.canShare && navigator.share);
-  el.shareNativeBtn.style.display = canShare ? "" : "none";
+  el.shareNativeBtn.style.display = (navigator.canShare && navigator.share) ? "" : "none";
+  const title = sheet.querySelector(".sheet__title"), lede = sheet.querySelector(".sheet__lede");
+  if (title) title.textContent = ctx.kind === "challenge" ? "Send your challenge" : "Share your result";
+  if (lede) lede.textContent = ctx.kind === "challenge" ? "Share the link — your friend plays against your gauntlet." : "A match card, ready to post anywhere.";
   openSheet(sheet);
 }
+async function openShare() { if (!lastMatch) return; Sound.tick(); const cv = await drawMatchCard(); openShareWith(cv, { kind: "result", link: location.href.split("#")[0] }); }
+async function openShareChallenge(link) { Sound.tick(); const cv = await drawChallengeCard(setup.champ, CHALLENGE_ROUNDS); openShareWith(cv, { kind: "challenge", link }); }
+
 async function shareNative() {
   const sheet = document.getElementById("shareSheet"); const cv = sheet && sheet._canvas; if (!cv) return;
   try {
     const blob = await canvasToBlob(cv);
-    const file = new File([blob], "rivals-result.png", { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: "RIVALS", text: `${lastMatch.winner} won on RIVALS!` });
-    } else { await navigator.share({ title: "RIVALS", text: `${lastMatch.winner} won on RIVALS! ${location.href}` }); }
+    const file = new File([blob], "rivals.png", { type: "image/png" });
+    const text = shareCtx.kind === "challenge"
+      ? `Beat my RIVALS gauntlet! ${shareCtx.link}`
+      : `${lastMatch ? lastMatch.winner : "I"} won on RIVALS! ${shareCtx.link}`;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "RIVALS", text });
+    else await navigator.share({ title: "RIVALS", text });
   } catch {}
 }
 async function shareDownload() {
   const sheet = document.getElementById("shareSheet"); const cv = sheet && sheet._canvas; if (!cv) return;
-  const a = document.createElement("a"); a.download = "rivals-result.png"; a.href = cv.toDataURL("image/png");
-  document.body.appendChild(a); a.click(); a.remove(); toast("Match card downloaded.");
+  const a = document.createElement("a"); a.download = shareCtx.kind === "challenge" ? "rivals-challenge.png" : "rivals-result.png"; a.href = cv.toDataURL("image/png");
+  document.body.appendChild(a); a.click(); a.remove(); toast("Image downloaded.");
 }
 async function shareCopy() {
-  try { await navigator.clipboard.writeText(location.href.split("#")[0]); toast("Link copied to clipboard."); }
-  catch { toast("Copy the URL from your address bar to share."); }
+  const link = shareCtx.link || location.href.split("#")[0];
+  try { await navigator.clipboard.writeText(link); toast(shareCtx.kind === "challenge" ? "Challenge link copied!" : "Link copied to clipboard."); }
+  catch { toast("Copy the link from your address bar to share."); }
 }
 
 /* ---------- Sheets ---------- */
@@ -830,8 +1049,8 @@ function forfeit() {
   if (!match.active) return;
   match.active = false;
   if (el.passCover) el.passCover.hidden = true;
-  if (match.mode !== "pvp") {
-    recordMatch({ won: false, playerScore: match.player, cpuScore: match.cpu, rounds: match.round, flawless: false, comeback: false, rivalStars: RIVAL_BY_ID[setup.rivalId].stars, moves: match.playerHistory.slice() });
+  if (match.mode === "ai") {
+    recordMatch({ won: false, playerScore: match.player, cpuScore: match.cpu, rounds: match.round, flawless: false, comeback: false, rivalStars: RIVAL_BY_ID[setup.rivalId].stars, moves: match.playerHistory.slice(), champId: setup.champ.id });
     renderTopbar();
   }
   show("setup");
@@ -888,7 +1107,9 @@ function boot() {
   buildRivalPicker();
   bind();
   renderTopbar();
-  show("home");
+  pendingChallenge = parseChallengeFromUrl();
+  if (pendingChallenge) { setup.mode = "accept"; show("setup"); }
+  else show("home");
   requestAnimationFrame(() => $$(".reveal").forEach((r) => { r.style.animationDelay = (parseInt(r.dataset.r || "1", 10) - 1) * 90 + "ms"; r.classList.add("in"); }));
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

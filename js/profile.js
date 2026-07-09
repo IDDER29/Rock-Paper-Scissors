@@ -17,7 +17,9 @@ function defaults() {
       wins: 0, losses: 0, draws: 0, streak: 0, bestStreak: 0,
       rounds: 0, matches: 0, flawless: 0, comebacks: 0, dailyDone: 0,
       beatGrandmaster: false,
+      challengesWon: 0, challengesLost: 0,
       movesThrown: { rock: 0, paper: 0, scissors: 0 },
+      winsByChamp: {}, playsByChamp: {},
     },
     unlocks: { champions: [...STARTERS], arenas: ["nebula"], titles: [] },
     achievements: {},
@@ -33,6 +35,8 @@ function hydrate(raw) {
   const p = { ...base, ...raw };
   p.career = { ...base.career, ...(raw.career || {}) };
   p.career.movesThrown = { ...base.career.movesThrown, ...((raw.career || {}).movesThrown || {}) };
+  p.career.winsByChamp = { ...((raw.career || {}).winsByChamp || {}) };
+  p.career.playsByChamp = { ...((raw.career || {}).playsByChamp || {}) };
   p.unlocks = { ...base.unlocks, ...(raw.unlocks || {}) };
   p.unlocks.champions = Array.from(new Set([...STARTERS, ...(p.unlocks.champions || [])]));
   p.unlocks.arenas = Array.from(new Set(["nebula", ...(p.unlocks.arenas || [])]));
@@ -143,6 +147,11 @@ export function recordMatch(ctx) {
   if (ctx.won && ctx.flawless) c.flawless++;
   if (ctx.won && ctx.comeback) c.comebacks++;
   if (ctx.won && ctx.rivalStars >= 4) c.beatGrandmaster = true;
+  if (ctx.champId) {
+    c.playsByChamp[ctx.champId] = (c.playsByChamp[ctx.champId] || 0) + 1;
+    if (ctx.won) c.winsByChamp[ctx.champId] = (c.winsByChamp[ctx.champId] || 0) + 1;
+  }
+  if (ctx.challenge) { if (ctx.won) c.challengesWon++; else c.challengesLost++; }
 
   // XP breakdown
   const breakdown = [];

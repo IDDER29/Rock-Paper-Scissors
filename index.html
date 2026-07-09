@@ -114,12 +114,17 @@
           <div class="steps" aria-hidden="true"><span class="step is-active">1 · Champion</span><span class="step">2 · Rival</span><span class="step">3 · Fight</span></div>
         </div>
 
+        <div class="challenge-banner" id="challengeBanner" hidden></div>
+
         <div class="mode-switch" id="modeSwitch" role="radiogroup" aria-label="Game mode">
           <button class="mode is-selected" role="radio" aria-checked="true" data-mode="ai" type="button">
             <span class="mode__ic">🤖</span><span class="mode__title">vs Rival</span><span class="mode__sub">Face the AI</span>
           </button>
           <button class="mode" role="radio" aria-checked="false" data-mode="pvp" type="button">
             <span class="mode__ic">👥</span><span class="mode__title">Pass &amp; Play</span><span class="mode__sub">Two players, one device</span>
+          </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="challenge" type="button">
+            <span class="mode__ic">🔗</span><span class="mode__title">Challenge</span><span class="mode__sub">Send a friend a gauntlet</span>
           </button>
         </div>
 
@@ -134,7 +139,7 @@
           <div class="rival-picker" id="rivalPicker" role="radiogroup" aria-label="Choose your rival"></div>
         </div>
 
-        <div class="setup__grid setup__grid--one">
+        <div class="setup__grid setup__grid--one" id="lengthSection">
           <div class="panel">
             <h3 class="panel__title">Match length</h3>
             <p class="panel__sub">First to reach the target wins the crown.</p>
