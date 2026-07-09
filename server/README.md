@@ -1,7 +1,8 @@
 # RIVALS API (online backend)
 
-A tiny, **zero-dependency** Node server that gives RIVALS a shared, persistent
-head-to-head record and a global leaderboard. The game frontend stays static
+A **zero-dependency** Node server (uses Node's built-in `node:sqlite`) that
+gives RIVALS accounts, a persistent head-to-head record, and a global
+leaderboard. The game frontend stays static
 (GitHub Pages) and talks to this API only when you point it at one.
 
 Without this backend the game still works fully offline — challenge links just
@@ -22,15 +23,17 @@ embed the moves in the URL and stats stay on each device.
 - Derived on read: **head-to-head records** and the **Elo-ranked global
   leaderboard**.
 
-Data is persisted to a JSON file (`server/data.json` by default). No database
-to set up. For higher scale, swap the JSON store for SQLite/Postgres later.
+Data is persisted in a **SQLite** file (`server/rivals.db` by default) — set
+`DB_FILE` to relocate it. A one-time import from an old `data.json` runs
+automatically. For very high concurrency, move to managed Postgres + Redis.
 
 ## Run locally
 
 ```bash
-node server/server.js          # listens on :8787
-# or choose a port / data file:
-PORT=9000 DATA_FILE=/data/rivals.json node server/server.js
+node server/server.js          # listens on :8787 (SQLite at server/rivals.db)
+# choose a port / db location:
+PORT=9000 DB_FILE=/data/rivals.db node server/server.js
+# node:sqlite prints a harmless experimental warning; silence with NODE_NO_WARNINGS=1
 ```
 
 Then set the frontend to use it — edit `js/config.js`:
@@ -68,7 +71,9 @@ Commit that and your GitHub Pages build is now online. CORS is already open
 | Method | Path | Body / query | Returns |
 | --- | --- | --- | --- |
 | `GET` | `/` | — | health + counts |
-| `POST` | `/api/player` | `{name, id?}` | `{id, name}` |
+| `POST` | `/api/signup` | `{username, password, name}` | account + `{id, name, token, rating}` |
+| `POST` | `/api/login` | `{username, password}` | `{id, name, token, rating}` (cross-device) |
+| `POST` | `/api/player` | `{name, id?}` | guest identity `{id, name, token}` |
 | `POST` | `/api/challenge` | `{challengerId, name, champId, moves[]}` | `{id}` |
 | `GET` | `/api/challenge/:id` | — | `{challengerId, name, champId, moves}` |
 | `POST` | `/api/result` | `{challengeId, opponentId, opponentName, champId, pScore, cScore}` | `{rivalry, challengerName, challengerId}` |
