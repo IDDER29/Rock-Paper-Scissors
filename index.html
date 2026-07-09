@@ -106,14 +106,25 @@
           <div class="steps" aria-hidden="true"><span class="step is-active">1 · Champion</span><span class="step">2 · Rival</span><span class="step">3 · Fight</span></div>
         </div>
 
+        <div class="mode-switch" id="modeSwitch" role="radiogroup" aria-label="Game mode">
+          <button class="mode is-selected" role="radio" aria-checked="true" data-mode="ai" type="button">
+            <span class="mode__ic">🤖</span><span class="mode__title">vs Rival</span><span class="mode__sub">Face the AI</span>
+          </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="pvp" type="button">
+            <span class="mode__ic">👥</span><span class="mode__title">Pass &amp; Play</span><span class="mode__sub">Two players, one device</span>
+          </button>
+        </div>
+
         <h2 class="section-title" id="setup-title">Choose your champion</h2>
-        <p class="section-sub">This is you in the ring. Pick the face of your winning streak.</p>
+        <p class="section-sub" id="champSub">This is you in the ring. Pick the face of your winning streak.</p>
 
         <div class="roster" id="roster" role="radiogroup" aria-label="Choose your champion"></div>
 
-        <h2 class="section-title section-title--sm">Choose your rival</h2>
-        <p class="section-sub">Each rival plays by its own tell. Learn it, and beat it.</p>
-        <div class="rival-picker" id="rivalPicker" role="radiogroup" aria-label="Choose your rival"></div>
+        <div id="rivalSection">
+          <h2 class="section-title section-title--sm">Choose your rival</h2>
+          <p class="section-sub">Each rival plays by its own tell. Learn it, and beat it.</p>
+          <div class="rival-picker" id="rivalPicker" role="radiogroup" aria-label="Choose your rival"></div>
+        </div>
 
         <div class="setup__grid setup__grid--one">
           <div class="panel">
@@ -206,6 +217,16 @@
           </button>
         </div>
 
+        <!-- Pass-the-device cover (pass & play) -->
+        <div class="passcover" id="passCover" hidden>
+          <div class="passcover__card">
+            <span class="passcover__ic">🙈</span>
+            <h3 class="passcover__title">Pass to <b id="passName">Player 2</b></h3>
+            <p class="passcover__sub">Keep your move secret. Hand over the device, then tap when you're ready.</p>
+            <button class="btn btn--primary btn--lg" id="passBtn" type="button">I'm ready</button>
+          </div>
+        </div>
+
         <!-- Round history -->
         <div class="history" aria-label="Round history">
           <div class="history__head">
@@ -232,7 +253,7 @@
         <div class="result__stats" id="resultStats"></div>
 
         <!-- Progression / XP -->
-        <div class="progress-block">
+        <div class="progress-block" id="progressBlock">
           <div class="progress-block__top">
             <span class="lvl-chip" id="rLevelFrom">Lv 1</span>
             <span class="xp-gain" id="xpGain">+0 XP</span>
@@ -254,6 +275,10 @@
           <button class="btn btn--primary btn--lg" id="rematchBtn" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 018-8c3.2 0 6 1.9 7.3 4.7M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12a8 8 0 01-8 8c-3.2 0-6-1.9-7.3-4.7M4 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span>Rematch</span>
+          </button>
+          <button class="btn btn--ghost btn--lg" id="shareBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+            <span>Share</span>
           </button>
           <button class="btn btn--ghost btn--lg" data-nav="setup" type="button">Change setup</button>
         </div>
@@ -293,6 +318,27 @@
         <p><strong>Grandmaster</strong> tracks your favourite moves and counters your patterns — mix it up to win.</p>
       </div>
       <button class="btn btn--primary btn--block" data-close type="button">Got it</button>
+    </div>
+  </div>
+
+  <!-- ================= SHARE (dialog) ================= -->
+  <div class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-labelledby="share-title" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel" role="document">
+      <button class="sheet__close" data-close type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="sheet__title" id="share-title">Share your result</h2>
+      <p class="sheet__lede">A match card, ready to post anywhere.</p>
+      <img class="share-preview" id="sharePreview" alt="Your match result card" />
+      <div class="share-actions">
+        <button class="btn btn--primary" id="shareNativeBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+          <span>Share</span>
+        </button>
+        <button class="btn btn--ghost" id="shareDownloadBtn" type="button">Download</button>
+        <button class="btn btn--ghost" id="shareCopyBtn" type="button">Copy link</button>
+      </div>
     </div>
   </div>
 

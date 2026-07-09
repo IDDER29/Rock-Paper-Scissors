@@ -3,7 +3,7 @@
    Engine · AI personalities · progression · FX · routing
    ========================================================= */
 import {
-  CHAMPIONS, RIVALS, RIVAL_BY_ID, ARENAS, ARENA_BY_ID, ACHIEVEMENTS,
+  CHAMPIONS, RIVALS, RIVAL_BY_ID, ARENAS, ARENA_BY_ID, ACHIEVEMENTS, TAUNTS,
 } from "./data.js";
 import {
   profile, save, levelInfo, currentLevel, champUnlocked, arenaUnlocked,
@@ -46,6 +46,8 @@ const el = {};
   "soundBtn", "srStatus", "fx", "tbLevel", "tbXp", "levelChip",
   "dailyCard", "profileBody",
   "readsPanel", "readsRival", "readsBody", "readsTip",
+  "modeSwitch", "rivalSection", "champSub", "passCover", "passName", "passBtn",
+  "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
 el.resultTitle = document.getElementById("result-title");
@@ -186,7 +188,16 @@ function renderDaily() {
 }
 
 /* ---------- Setup ---------- */
-const setup = { champ: null, rivalId: "duelist", length: 5 };
+const setup = { champ: null, rivalId: "duelist", length: 5, mode: "ai" };
+
+function selectMode(mode) {
+  setup.mode = mode;
+  $$(".mode", el.modeSwitch).forEach((b) => { const on = b.dataset.mode === mode; b.classList.toggle("is-selected", on); b.setAttribute("aria-checked", String(on)); });
+  const pvp = mode === "pvp";
+  if (el.rivalSection) el.rivalSection.hidden = pvp;
+  if (el.champSub) el.champSub.textContent = pvp ? "Player 1 — pick your fighter. Player 2 gets a surprise challenger." : "This is you in the ring. Pick the face of your winning streak.";
+  Sound.tick(); updateSummary();
+}
 
 function renderRoster() {
   el.roster.innerHTML = CHAMPIONS.map((c, i) => {
@@ -244,9 +255,13 @@ function bindLength() {
   }));
 }
 function updateSummary() {
-  const r = RIVAL_BY_ID[setup.rivalId];
   if (!setup.champ) { el.setupSummary.innerHTML = "Pick a champion to continue."; el.startBtn.disabled = true; return; }
-  el.setupSummary.innerHTML = `Playing as <b>${setup.champ.name}</b> vs <b>${r.name}</b> · first to <b>${setup.length}</b>.`;
+  if (setup.mode === "pvp") {
+    el.setupSummary.innerHTML = `Two players, one device · first to <b>${setup.length}</b>.`;
+  } else {
+    const r = RIVAL_BY_ID[setup.rivalId];
+    el.setupSummary.innerHTML = `Playing as <b>${setup.champ.name}</b> vs <b>${r.name}</b> · first to <b>${setup.length}</b>.`;
+  }
   el.startBtn.disabled = false;
 }
 
@@ -254,28 +269,77 @@ function updateSummary() {
 const match = {
   active: false, locked: false, round: 0, player: 0, cpu: 0, target: 5,
   playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
+  mode: "ai", phase: "p1", p1move: null, p1name: "Player 1", p2name: "Player 2",
+  p1img: "", p2img: "",
 };
 
 function startMatch() {
   if (!setup.champ) return;
   Sound.resume();
+  const pvp = setup.mode === "pvp";
   Object.assign(match, {
     active: true, locked: false, round: 0, player: 0, cpu: 0, target: setup.length,
     playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
+    mode: setup.mode, phase: "p1", p1move: null,
   });
-  const rival = RIVAL_BY_ID[setup.rivalId];
-  el.playerAvatar.src = setup.champ.img; el.playerAvatar.alt = setup.champ.name;
-  el.playerName.textContent = setup.champ.name;
-  el.cpuAvatar.src = rival.img; el.cpuAvatar.alt = rival.name;
-  el.cpuName.textContent = rival.name; el.cpuTag.textContent = rival.tag;
-  el.cpuHandCaption.textContent = rival.name;
+
+  const p1 = setup.champ;
+  let opponent;
+  if (pvp) {
+    const pool = CHAMPIONS.filter((c) => champUnlocked(c.id) && c.id !== p1.id);
+    opponent = pool[(Math.random() * pool.length) | 0] || p1;
+  } else {
+    opponent = RIVAL_BY_ID[setup.rivalId];
+  }
+  match.p1name = p1.name; match.p1img = p1.img;
+  match.p2name = opponent.name; match.p2img = opponent.img;
+
+  el.playerAvatar.src = p1.img; el.playerAvatar.alt = p1.name;
+  el.playerName.textContent = p1.name;
+  el.cpuAvatar.src = opponent.img; el.cpuAvatar.alt = opponent.name;
+  el.cpuName.textContent = opponent.name;
+  el.cpuTag.textContent = pvp ? "Player 2" : opponent.tag;
+  el.cpuHandCaption.textContent = opponent.name;
   el.playerScore.textContent = "0"; el.cpuScore.textContent = "0";
   el.targetLabel.textContent = `First to ${match.target}`;
   buildPips(); resetHands();
   el.historyList.innerHTML = `<li class="history__empty">No rounds yet — throw your first move to begin the story.</li>`;
   el.verdict.className = "verdict"; el.verdict.textContent = "";
-  setStatus("Make your move.");
+  if (el.passCover) el.passCover.hidden = true;
+  setStatus(pvp ? `${match.p1name} — make your move` : "Make your move.");
   unlockMoves(); show("battle"); injectIcons(el.moves);
+}
+
+/* dispatch a move click/keypress to the right handler */
+function throwMove(move) {
+  if (!match.active || match.locked) return;
+  if (match.mode === "pvp") pvpMove(move);
+  else playRound(move);
+}
+
+/* --- Pass & Play round flow --- */
+function pvpMove(move) {
+  if (match.phase === "p1") {
+    match.p1move = move; lockMoves(); Sound.pick();
+    const picked = $(`.move[data-move="${move}"]`, el.moves); if (picked) picked.classList.add("is-picked");
+    el.passName.textContent = match.p2name;
+    el.passCover.hidden = false;
+    el.passBtn.focus();
+    setStatus("");
+  } else if (match.phase === "p2") {
+    lockMoves(); Sound.pick();
+    match.round++;
+    match.playerHistory.push(match.p1move); match.cpuHistory.push(move);
+    const result = judge(match.p1move, move);
+    match.rounds.push({ p: match.p1move, c: move, result });
+    revealRound(match.p1move, move, result);
+  }
+}
+function passReady() {
+  el.passCover.hidden = true;
+  match.phase = "p2";
+  unlockMoves();
+  setStatus(`${match.p2name} — make your move`);
 }
 
 function buildPips() {
@@ -370,13 +434,18 @@ function revealRound(playerMove, cpuMove, result) {
   match.maxDeficit = Math.max(match.maxDeficit, match.cpu - match.player);
 
   bumpScores(); paintPips();
+  const pvp = match.mode === "pvp";
   const vmap = {
-    win: { cls: "v-win", txt: "You win!", snd: Sound.win },
-    lose: { cls: "v-lose", txt: "Rival wins", snd: Sound.lose },
+    win: { cls: "v-win", txt: pvp ? `${match.p1name} wins` : "You win!", snd: Sound.win },
+    lose: { cls: "v-lose", txt: pvp ? `${match.p2name} wins` : "Rival wins", snd: Sound.lose },
     draw: { cls: "v-draw", txt: "Draw", snd: Sound.draw },
   }[result];
   el.verdict.className = `verdict show ${vmap.cls}`; el.verdict.textContent = vmap.txt; vmap.snd();
-  const flavour = {
+  const flavour = pvp ? {
+    win: `${LABEL[playerMove]} beats ${LABEL[cpuMove]}.`,
+    lose: `${LABEL[cpuMove]} beats ${LABEL[playerMove]}.`,
+    draw: `Both threw ${LABEL[playerMove]}.`,
+  }[result] : {
     win: `Your ${LABEL[playerMove]} beats ${LABEL[cpuMove]}.`,
     lose: `Their ${LABEL[cpuMove]} beats your ${LABEL[playerMove]}.`,
     draw: `Both threw ${LABEL[playerMove]}.`,
@@ -386,7 +455,11 @@ function revealRound(playerMove, cpuMove, result) {
   addHistory(match.round, playerMove, cpuMove, result);
 
   if (match.player >= match.target || match.cpu >= match.target) setTimeout(endMatch, 1050);
-  else setTimeout(() => { resetHands(); el.verdict.className = "verdict"; el.verdict.textContent = ""; unlockMoves(); setStatus("Next round — make your move."); }, 1150);
+  else setTimeout(() => {
+    resetHands(); el.verdict.className = "verdict"; el.verdict.textContent = ""; unlockMoves();
+    if (pvp) { match.phase = "p1"; setStatus(`${match.p1name} — make your move`); }
+    else setStatus("Next round — make your move.");
+  }, 1150);
 }
 function bumpScores() {
   el.playerScore.textContent = String(match.player); el.cpuScore.textContent = String(match.cpu);
@@ -402,12 +475,19 @@ function addHistory(no, p, c, result) {
 }
 
 /* ---------- End of match + progression ---------- */
+let lastMatch = null; // snapshot for the share card
+
 function endMatch() {
   match.active = false;
+  if (el.passCover) el.passCover.hidden = true;
+  if (match.mode === "pvp") return endMatchPvp();
+
   const won = match.player > match.cpu;
   const flawless = won && match.cpu === 0;
   const comeback = won && match.maxDeficit >= 2;
   const rival = RIVAL_BY_ID[setup.rivalId];
+
+  if (el.progressBlock) el.progressBlock.hidden = false;
 
   const ctx = {
     won, playerScore: match.player, cpuScore: match.cpu, rounds: match.round,
@@ -438,8 +518,45 @@ function endMatch() {
   if (won) { Confetti.burst(160); Sound.fanfare(); } else Sound.defeat();
   announce(won ? "You won the match." : "You lost the match.");
 
+  const taunts = TAUNTS[won ? "win" : "lose"];
+  lastMatch = { mode: "ai", won, winner: won ? setup.champ.name : rival.name,
+    p1name: setup.champ.name, p1img: setup.champ.img, p2name: rival.name, p2img: rival.img,
+    pScore: match.player, cScore: match.cpu, taunt: taunts[match.round % taunts.length] };
+
   if (summary.leveledUp) { setTimeout(() => Sound.level(), 500); setTimeout(() => showUnlocks(summary), 900); }
   else if (summary.newAchievements.length) setTimeout(() => summary.newAchievements.forEach((a, i) => setTimeout(() => toast(`<span class="toast__ic">${a.icon}</span><div><b>Achievement</b><br>${a.name}</div>`), i * 900)), 700);
+}
+
+/* Pass & Play match end — no progression, neutral framing */
+function endMatchPvp() {
+  const p1won = match.player > match.cpu;
+  const winner = p1won ? match.p1name : match.p2name;
+  const wScore = Math.max(match.player, match.cpu), lScore = Math.min(match.player, match.cpu);
+
+  if (el.progressBlock) el.progressBlock.hidden = true;
+  if (el.readsPanel) el.readsPanel.hidden = true;
+
+  el.resultCard.dataset.outcome = "win";
+  el.resultBadge.textContent = "🏆";
+  el.resultKicker.textContent = "Pass & Play · Match complete";
+  el.resultTitle.textContent = `${winner} wins`;
+  el.resultLine.textContent = `${winner} takes the crown ${wScore}–${lScore}. Run it back?`;
+  el.resultScoreline.innerHTML = `<span class="me">${match.player}</span><span class="sep">—</span><span class="cpu">${match.cpu}</span>`;
+  const draws = match.round - (match.player + match.cpu);
+  el.resultStats.innerHTML = `
+    <div class="rstat"><div class="rstat__num">${match.round}</div><div class="rstat__label">Rounds</div></div>
+    <div class="rstat"><div class="rstat__num">${draws}</div><div class="rstat__label">Draws</div></div>
+    <div class="rstat"><div class="rstat__num">${wScore}–${lScore}</div><div class="rstat__label">Final</div></div>`;
+
+  const taunts = TAUNTS.win;
+  lastMatch = { mode: "pvp", won: true, winner,
+    p1name: match.p1name, p1img: match.p1img, p2name: match.p2name, p2img: match.p2img,
+    pScore: match.player, cScore: match.cpu, taunt: taunts[match.round % taunts.length] };
+
+  show("result");
+  injectIcons(el.resultCard);
+  Confetti.burst(160); Sound.fanfare();
+  announce(`${winner} won the match.`);
 }
 
 function renderProgress(s) {
@@ -576,6 +693,88 @@ function renderProfile() {
   });
 }
 
+/* ---------- Shareable match card ---------- */
+function loadImg(src) {
+  return new Promise((res) => { const im = new Image(); im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+}
+function drawAvatarCircle(g, im, cx, cy, r, ring) {
+  g.save(); g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.closePath(); g.clip();
+  if (im) { const s = Math.max((2 * r) / im.width, (2 * r) / im.height); const w = im.width * s, h = im.height * s; g.drawImage(im, cx - w / 2, cy - h / 2, w, h); }
+  else { g.fillStyle = "#1a1d2e"; g.fillRect(cx - r, cy - r, 2 * r, 2 * r); }
+  g.restore();
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.lineWidth = 7; g.strokeStyle = ring; g.stroke();
+}
+async function drawMatchCard() {
+  const lm = lastMatch; if (!lm) return null;
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch {}
+  const W = 1200, H = 630, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d");
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#0c1030"); bg.addColorStop(1, "#0a0b14");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W / 2, 40, 40, W / 2, 40, 760);
+  glow.addColorStop(0, lm.won ? "rgba(74,222,128,.34)" : "rgba(255,107,125,.3)"); glow.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+
+  g.textBaseline = "alphabetic"; g.textAlign = "left";
+  g.fillStyle = "#f3f4fb"; g.font = '700 40px "Space Grotesk", system-ui, sans-serif';
+  g.fillText("RIVALS", 64, 92);
+  g.font = '500 22px Inter, system-ui, sans-serif'; g.fillStyle = "#8186a3";
+  g.fillText("ROCK · PAPER · SCISSORS", 66, 122);
+
+  g.textAlign = "center";
+  const title = lm.mode === "pvp" ? `${lm.winner.toUpperCase()} WINS` : (lm.won ? "VICTORY" : "DEFEAT");
+  g.font = '700 84px "Space Grotesk", system-ui, sans-serif';
+  g.fillStyle = lm.won ? "#5ee08e" : "#ff6b7d";
+  if (lm.mode === "pvp") g.fillStyle = "#b49bff";
+  g.fillText(title, W / 2, 232);
+
+  const [a, b] = await Promise.all([loadImg(lm.p1img), loadImg(lm.p2img)]);
+  drawAvatarCircle(g, a, 330, 400, 108, "#8b6bff");
+  drawAvatarCircle(g, b, 870, 400, 108, "#ff7a90");
+
+  g.font = '700 96px "Space Grotesk", system-ui, sans-serif'; g.fillStyle = "#f3f4fb"; g.textBaseline = "middle";
+  g.fillText(`${lm.pScore}–${lm.cScore}`, W / 2, 400);
+  g.textBaseline = "alphabetic";
+  g.font = '600 34px Inter, system-ui, sans-serif'; g.fillStyle = "#f3f4fb";
+  g.fillText(lm.p1name, 330, 552); g.fillText(lm.p2name, 870, 552);
+
+  g.font = 'italic 27px Inter, system-ui, sans-serif'; g.fillStyle = "#b9bcd0";
+  g.fillText(`“${lm.taunt}”`, W / 2, 600);
+  g.textAlign = "left";
+  return cv;
+}
+const canvasToBlob = (cv) => new Promise((res) => cv.toBlob(res, "image/png"));
+
+async function openShare() {
+  const sheet = document.getElementById("shareSheet"); if (!sheet || !lastMatch) return;
+  Sound.tick();
+  const cv = await drawMatchCard(); if (!cv) return;
+  sheet._canvas = cv;
+  el.sharePreview.src = cv.toDataURL("image/png");
+  const canShare = !!(navigator.canShare && navigator.share);
+  el.shareNativeBtn.style.display = canShare ? "" : "none";
+  openSheet(sheet);
+}
+async function shareNative() {
+  const sheet = document.getElementById("shareSheet"); const cv = sheet && sheet._canvas; if (!cv) return;
+  try {
+    const blob = await canvasToBlob(cv);
+    const file = new File([blob], "rivals-result.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "RIVALS", text: `${lastMatch.winner} won on RIVALS!` });
+    } else { await navigator.share({ title: "RIVALS", text: `${lastMatch.winner} won on RIVALS! ${location.href}` }); }
+  } catch {}
+}
+async function shareDownload() {
+  const sheet = document.getElementById("shareSheet"); const cv = sheet && sheet._canvas; if (!cv) return;
+  const a = document.createElement("a"); a.download = "rivals-result.png"; a.href = cv.toDataURL("image/png");
+  document.body.appendChild(a); a.click(); a.remove(); toast("Match card downloaded.");
+}
+async function shareCopy() {
+  try { await navigator.clipboard.writeText(location.href.split("#")[0]); toast("Link copied to clipboard."); }
+  catch { toast("Copy the URL from your address bar to share."); }
+}
+
 /* ---------- Sheets ---------- */
 let lastFocus = null;
 function openSheet(sheet) {
@@ -606,16 +805,24 @@ function toggleSound() {
 function onKey(e) {
   const openSheetEl = $(".sheet:not([hidden])"); if (openSheetEl) return;
   if (current === "battle") {
+    if (match.mode === "pvp" && el.passCover && !el.passCover.hidden) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); passReady(); }
+      return;
+    }
     const map = { r: "rock", p: "paper", s: "scissors" }, k = e.key.toLowerCase();
-    if (map[k] && !match.locked && match.active) { e.preventDefault(); playRound(map[k]); }
+    if (map[k] && !match.locked && match.active) { e.preventDefault(); throwMove(map[k]); }
     if (e.key === "Escape") { e.preventDefault(); forfeit(); }
   }
 }
 function forfeit() {
   if (!match.active) return;
   match.active = false;
-  recordMatch({ won: false, playerScore: match.player, cpuScore: match.cpu, rounds: match.round, flawless: false, comeback: false, rivalStars: RIVAL_BY_ID[setup.rivalId].stars, moves: match.playerHistory.slice() });
-  renderTopbar(); show("setup");
+  if (el.passCover) el.passCover.hidden = true;
+  if (match.mode !== "pvp") {
+    recordMatch({ won: false, playerScore: match.player, cpuScore: match.cpu, rounds: match.round, flawless: false, comeback: false, rivalStars: RIVAL_BY_ID[setup.rivalId].stars, moves: match.playerHistory.slice() });
+    renderTopbar();
+  }
+  show("setup");
 }
 
 /* ---------- Wire up ---------- */
@@ -628,15 +835,24 @@ function bind() {
     el.rivalPicker.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { const r = e.target.closest(".rival"); if (r) { e.preventDefault(); selectRival(r.dataset.id); } } });
   }
   bindLength();
+  if (el.modeSwitch) $$(".mode", el.modeSwitch).forEach((b) => b.addEventListener("click", () => selectMode(b.dataset.mode)));
   el.startBtn.addEventListener("click", startMatch);
   el.rematchBtn.addEventListener("click", startMatch);
   el.quitBtn.addEventListener("click", forfeit);
-  $$(".move", el.moves).forEach((m) => m.addEventListener("click", () => { if (!match.locked && match.active) playRound(m.dataset.move); }));
+  if (el.passBtn) el.passBtn.addEventListener("click", passReady);
+  $$(".move", el.moves).forEach((m) => m.addEventListener("click", () => throwMove(m.dataset.move)));
 
   const howto = document.getElementById("howtoSheet");
   $("#howtoBtn").addEventListener("click", () => openSheet(howto));
   const h2 = document.getElementById("howtoBtn2"); h2 && h2.addEventListener("click", () => openSheet(howto));
   $$("[data-close]", howto).forEach((b) => b.addEventListener("click", () => closeSheet(howto)));
+
+  const shareSheet = document.getElementById("shareSheet");
+  if (el.shareBtn) el.shareBtn.addEventListener("click", openShare);
+  if (shareSheet) $$("[data-close]", shareSheet).forEach((b) => b.addEventListener("click", () => closeSheet(shareSheet)));
+  if (el.shareNativeBtn) el.shareNativeBtn.addEventListener("click", shareNative);
+  if (el.shareDownloadBtn) el.shareDownloadBtn.addEventListener("click", shareDownload);
+  if (el.shareCopyBtn) el.shareCopyBtn.addEventListener("click", shareCopy);
 
   el.soundBtn.addEventListener("click", toggleSound);
   el.soundBtn.setAttribute("aria-pressed", String(soundOn));
