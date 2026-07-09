@@ -118,19 +118,24 @@
 
         <div class="mode-switch" id="modeSwitch" role="radiogroup" aria-label="Game mode">
           <button class="mode is-selected" role="radio" aria-checked="true" data-mode="ai" type="button">
-            <span class="mode__ic">🤖</span><span class="mode__title">vs Rival</span><span class="mode__sub">Face the AI</span>
+            <span class="mode__ic">🤖</span>
+            <span class="mode__text"><span class="mode__title">vs Rival</span><span class="mode__sub">Face the AI</span></span>
           </button>
           <button class="mode" role="radio" aria-checked="false" data-mode="pvp" type="button">
-            <span class="mode__ic">👥</span><span class="mode__title">Pass &amp; Play</span><span class="mode__sub">Two players, one device</span>
+            <span class="mode__ic">👥</span>
+            <span class="mode__text"><span class="mode__title">Pass &amp; Play</span><span class="mode__sub">Two players, one device</span></span>
           </button>
           <button class="mode" role="radio" aria-checked="false" data-mode="challenge" type="button">
-            <span class="mode__ic">🔗</span><span class="mode__title">Challenge</span><span class="mode__sub">Send a friend a gauntlet</span>
+            <span class="mode__ic">🔗</span>
+            <span class="mode__text"><span class="mode__title">Challenge</span><span class="mode__sub">Send a friend a gauntlet</span></span>
           </button>
           <button class="mode" role="radio" aria-checked="false" data-mode="live" type="button">
-            <span class="mode__ic">⚡</span><span class="mode__title">Live</span><span class="mode__sub">Invite a friend, real-time</span>
+            <span class="mode__ic">⚡</span>
+            <span class="mode__text"><span class="mode__title">Live</span><span class="mode__sub">Invite a friend, real-time</span></span>
           </button>
           <button class="mode" role="radio" aria-checked="false" data-mode="quick" type="button">
-            <span class="mode__ic">🌐</span><span class="mode__title">Quick Match</span><span class="mode__sub">Random opponent online</span>
+            <span class="mode__ic">🌐</span>
+            <span class="mode__text"><span class="mode__title">Quick Match</span><span class="mode__sub">Random opponent online</span></span>
           </button>
         </div>
 
@@ -205,6 +210,7 @@
           </div>
 
           <div class="duel__center">
+            <span class="duel__vs" id="duelVs" aria-hidden="true">VS</span>
             <div class="countdown" id="countdown" aria-hidden="true"></div>
             <div class="verdict" id="verdict" role="status" aria-live="assertive"></div>
           </div>

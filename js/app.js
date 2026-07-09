@@ -424,17 +424,24 @@ function buildRivalPicker() {
     const stars = "★".repeat(r.stars) + "☆".repeat(4 - r.stars);
     const champ = CHAMP_BY_ID[r.champ];
     const claimed = champUnlocked(r.champ);
-    const reward = champ ? `<span class="rival__reward ${claimed ? "is-claimed" : ""}">${claimed ? `✓ ${champ.name} recruited` : `🎁 Beat to claim ${champ.name}`}</span>` : "";
+    const reward = champ ? `<span class="rival__reward ${claimed ? "is-claimed" : ""}">${claimed ? `<span class="rival__reward-ic">✓</span> ${esc(champ.name)} recruited` : `<span class="rival__reward-ic">🎁</span> Beat to claim ${esc(champ.name)}`}</span>` : "";
     return `
       <button class="rival ${sel ? "is-selected" : ""}" role="radio" aria-checked="${sel}" data-id="${r.id}">
-        <img class="rival__avatar" src="${r.img}" alt="" loading="lazy" onerror="this.style.opacity=.2"/>
-        <span class="rival__body">
-          <span class="rival__name">${r.name}</span>
-          <span class="rival__tag">${r.tag}</span>
-          <span class="rival__blurb">${r.blurb}</span>
-          ${reward}
+        <span class="rival__top">
+          <span class="rival__avatar-wrap">
+            <img class="rival__avatar" src="${r.img}" alt="" loading="lazy" onerror="this.style.opacity=.2"/>
+          </span>
+          <span class="rival__id">
+            <span class="rival__name">${esc(r.name)}</span>
+            <span class="rival__tag">${esc(r.tag)}</span>
+          </span>
+          <span class="rival__stars" aria-label="Difficulty ${r.stars} of 4" title="Difficulty ${r.stars}/4">${stars}</span>
         </span>
-        <span class="rival__stars" aria-label="${r.stars} of 4 difficulty">${stars}</span>
+        <span class="rival__blurb">${esc(r.blurb)}</span>
+        ${reward}
+        <span class="rival__pick" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
       </button>`;
   }).join("");
 }
