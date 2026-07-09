@@ -1218,8 +1218,6 @@ async function renderOnlineSections() {
     const board = lb.leaderboard || [];
     const meRow = board.find((x) => x.id === me.id);
     const myRank = meRow ? board.findIndex((x) => x.id === me.id) + 1 : 0;
-    const myRating = meRow ? meRow.rating : (identity().rating || 1200);
-    const heroHTML = `<div class="rating-hero"><div class="rating-hero__num">${myRating}</div><div class="rating-hero__meta">Elo rating${myRank ? ` · rank #${myRank} of ${board.length}` : " · provisional — play a ranked game"}</div></div>`;
 
     const rivals = rv.rivalries || [];
     const rivalsHTML = rivals.length
@@ -1227,44 +1225,40 @@ async function renderOnlineSections() {
       : `<div class="career__empty"><span>🤝</span><div>No rivalries yet — send a challenge link or play a Quick Match to start one.</div></div>`;
     const medals = ["🥇", "🥈", "🥉"];
     const lbHTML = board.length
-      ? `<ol class="lb">${board.map((x, i) => `<li class="lb__row lb__row--rank ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${esc(x.name)}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__stat"><b class="lb__rating">${x.rating}</b><span class="lb__sub">${x.wins}W · ${x.losses}L</span></span></li>`).join("")}</ol>`
+      ? `<ol class="lb">${board.slice(0, 8).map((x, i) => `<li class="lb__row lb__row--rank ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${esc(x.name)}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__stat"><b class="lb__rating">${x.rating}</b><span class="lb__sub">${x.wins}W · ${x.losses}L</span></span></li>`).join("")}</ol>`
       : `<div class="career__empty"><span>🏆</span><div>The global leaderboard is empty — be the first to post a win.</div></div>`;
     host.innerHTML = `
-      <h3 class="panel__title">Your rating <span class="muted">${me.name ? "as " + esc(me.name) : ""}</span></h3>
-      ${heroHTML}
-      <h3 class="panel__title" style="margin-top:24px">Rivalries</h3>
-      ${rivalsHTML}
-      <h3 class="panel__title" style="margin-top:24px">Global leaderboard <span class="muted">by Elo</span></h3>
-      ${lbHTML}`;
+      <div class="ladder-head">
+        <h3 class="panel__title">Online ladder</h3>
+        ${myRank ? `<span class="ladder-badge">#${myRank} <i>of ${board.length}</i></span>` : `<span class="ladder-badge ladder-badge--prov">Unranked</span>`}
+      </div>
+      <div class="online-cols">
+        <div><h4 class="pcard__sub">Your rivalries${me.name ? ` · ${esc(me.name)}` : ""}</h4>${rivalsHTML}</div>
+        <div><h4 class="pcard__sub">Top of the ladder</h4>${lbHTML}</div>
+      </div>`;
   } catch {
     host.innerHTML = `<h3 class="panel__title">Online play</h3><div class="career__empty"><span>⚠️</span><div>Couldn't reach the online server. Records will sync when it's back.</div></div>`;
   }
 }
 
-function accountCardHTML() {
-  const o = identity();
-  if (isSignedIn()) {
-    return `<div class="account-card is-in">
-      <div class="account-card__body">
-        <span class="account-card__ic">✓</span>
-        <div><div class="account-card__title">Signed in as @${esc(o.username)}</div>
-        <div class="account-card__sub">${esc(o.name)} · rating & rivalries sync across your devices.</div></div>
-      </div>
-      <button class="btn btn--ghost btn--sm" id="logoutBtn" type="button">Log out</button>
-    </div>`;
-  }
-  const canAccount = net.online();
-  return `<div class="account-card">
-    <div class="account-card__body">
-      <span class="account-card__ic">☁︎</span>
-      <div><div class="account-card__title">${hasIdentity() ? "Playing as " + esc(o.name || "guest") : "Guest"}</div>
-      <div class="account-card__sub">${canAccount ? "Create an account to keep your rating and rivalries on every device." : "Online accounts are offline right now."}</div></div>
-    </div>
-    ${canAccount ? `<div class="account-card__actions">
+/* Elo → named rank tier (base rating is 1200) */
+function ratingTier(r) {
+  if (!r) return { name: "Unranked", cls: "unranked" };
+  if (r < 1100) return { name: "Novice", cls: "t1" };
+  if (r < 1250) return { name: "Contender", cls: "t2" };
+  if (r < 1450) return { name: "Challenger", cls: "t3" };
+  if (r < 1650) return { name: "Expert", cls: "t4" };
+  return { name: "Master", cls: "t5" };
+}
+
+/* Account action buttons shown in the profile identity card */
+function heroAccountHTML() {
+  if (isSignedIn()) return `<button class="btn btn--ghost btn--sm" id="logoutBtn" type="button">Log out</button>`;
+  if (net.online()) return `<div class="pidentity__auth">
       <button class="btn btn--ghost btn--sm" id="acctLoginBtn" type="button">Log in</button>
       <button class="btn btn--primary btn--sm" id="acctSignupBtn" type="button">Sign up</button>
-    </div>` : ""}
-  </div>`;
+    </div>`;
+  return "";
 }
 
 async function openAuthSheet(mode) {
@@ -1288,60 +1282,112 @@ function renderProfile() {
   const movePct = (m) => Math.round((c.movesThrown[m] / totalMoves) * 100);
   const achUnlocked = ACHIEVEMENTS.filter((a) => profile.achievements[a.id]).length;
 
-  el.profileBody.innerHTML = `
-    <div class="prof-hero">
-      <div class="prof-level"><span class="prof-level__ring prof-level__ring--rating"><b>${rating || "—"}</b></span></div>
-      <div class="prof-hero__meta">
-        <h2 class="section-title">${rating ? rating + " rating" : "Unranked"}</h2>
-        <p class="prof-xp">${rating
-          ? "Elo rating — win online matches to climb the ladder."
-          : (net.online() ? "Play a Quick Match or a friend online to earn your first rating." : "Rating is earned online. Champions: " + profile.unlocks.champions.length + "/" + CHAMPIONS.length + " collected.")}</p>
-      </div>
-    </div>
-    ${accountCardHTML()}
-    <div class="prof-stats">
-      <div class="stat"><div class="stat__num is-win">${c.wins}</div><div class="stat__label">Wins</div></div>
-      <div class="stat"><div class="stat__num is-lose">${c.losses}</div><div class="stat__label">Losses</div></div>
-      <div class="stat"><div class="stat__num">${rate}%</div><div class="stat__label">Win rate</div></div>
-      <div class="stat"><div class="stat__num is-streak">${c.bestStreak}</div><div class="stat__label">Best streak</div></div>
-      <div class="stat"><div class="stat__num">${c.rounds}</div><div class="stat__label">Rounds</div></div>
-      <div class="stat"><div class="stat__num">${c.matches}</div><div class="stat__label">Matches</div></div>
-    </div>
-    <div class="panel">
-      <h3 class="panel__title">Your throws</h3>
-      <div class="movebars">
-        ${["rock", "paper", "scissors"].map((m) => `
-          <div class="movebar"><span class="movebar__ic mv-${m}" data-icon="${m}">${ICONS[m]}</span>
-            <div class="movebar__track"><i class="mv-${m}" style="width:${movePct(m)}%"></i></div><b>${movePct(m)}%</b></div>`).join("")}
-      </div>
-    </div>
-    <div class="prof-section">
-      <h3 class="panel__title">Achievements <span class="muted">${achUnlocked}/${ACHIEVEMENTS.length}</span></h3>
-      <div class="ach-grid">
-        ${ACHIEVEMENTS.map((a) => { const got = !!profile.achievements[a.id];
-          return `<div class="ach ${got ? "is-got" : ""}" title="${a.desc}"><span class="ach__ic">${got ? a.icon : ICONS.lock}</span><span class="ach__name">${a.name}</span><span class="ach__desc">${a.desc}</span></div>`; }).join("")}
-      </div>
-    </div>
-    <div class="prof-section">
-      <h3 class="panel__title">Champion leaderboard <span class="muted">${(c.challengesWon || 0)}W / ${(c.challengesLost || 0)}L in challenges</span></h3>
-      ${leaderboardHTML(c)}
-    </div>
+  const o = identity();
+  const tier = ratingTier(rating);
+  const canAccount = net.online();
 
-    <div class="prof-section">
-      <h3 class="panel__title">Champions <span class="muted">${profile.unlocks.champions.length}/${CHAMPIONS.length}</span></h3>
-      <div class="gallery">
-        ${CHAMPIONS.map((ch) => { const got = champUnlocked(ch.id);
-          return `<div class="gitem ${got ? "" : "is-locked"}" title="${got ? ch.name : "Locked — " + unlockHint(ch)}"><img src="${ch.img}" alt="${ch.name}" loading="lazy"/>${got ? "" : `<span class="gitem__lock">${ICONS.lock}<b>${unlockHint(ch)}</b></span>`}<span class="gitem__name">${ch.name}</span></div>`; }).join("")}
+  // Signature champion (most-played) drives the hero avatar
+  let heroChampId = null, maxPlays = 0;
+  for (const id in (c.playsByChamp || {})) { const n = c.playsByChamp[id]; if (n > maxPlays && CHAMP_BY_ID[id]) { maxPlays = n; heroChampId = id; } }
+  const heroChamp = (heroChampId && CHAMP_BY_ID[heroChampId]) || CHAMP_BY_ID[profile.unlocks.champions[0]] || CHAMPIONS[0];
+
+  const displayName = isSignedIn() ? "@" + o.username : (o.name && o.name.trim() ? o.name : "Guest");
+  const accountSub = isSignedIn()
+    ? "Synced across your devices"
+    : canAccount ? "Guest — save your progress with an account"
+    : "Local profile on this device";
+  const ratingMeta = rating ? `Elo rating · ${tier.name}` : (canAccount ? "Play online to earn a rating" : "Earned in online matches");
+  const totalGames = c.wins + c.losses + c.draws;
+  const pctOf = (n) => totalGames ? (n / totalGames) * 100 : 0;
+
+  el.profileBody.innerHTML = `
+    <div class="pgrid">
+      <aside class="pside">
+        <div class="pcard pidentity" data-tier="${tier.cls}">
+          <span class="pidentity__glow" aria-hidden="true"></span>
+          <div class="pidentity__avatar">
+            <img src="${heroChamp.img}" alt="${esc(heroChamp.name)}" />
+            ${maxPlays > 0 ? `<span class="pidentity__main">★ ${esc(heroChamp.name)}</span>` : ""}
+          </div>
+          <h2 class="pidentity__name">${esc(displayName)}</h2>
+          <span class="tier tier--${tier.cls} pidentity__tier">${tier.name}</span>
+          <p class="pidentity__sub">${accountSub}</p>
+          <div class="pidentity__action">${heroAccountHTML()}</div>
+        </div>
+
+        <div class="pcard prating" data-tier="${tier.cls}">
+          <span class="prating__ic">★</span>
+          <div class="prating__body">
+            <div class="prating__num">${rating || "—"}</div>
+            <div class="prating__meta">${ratingMeta}</div>
+          </div>
+        </div>
+
+        <div class="pcard">
+          <div class="pcard__head"><span class="pcard__ico">📊</span><h3 class="panel__title">Record</h3></div>
+          <div class="wld__bar" role="img" aria-label="${c.wins} won, ${c.draws} drawn, ${c.losses} lost">
+            <span class="wld__seg wld__seg--w" style="width:${pctOf(c.wins)}%"></span>
+            <span class="wld__seg wld__seg--d" style="width:${pctOf(c.draws)}%"></span>
+            <span class="wld__seg wld__seg--l" style="width:${pctOf(c.losses)}%"></span>
+          </div>
+          <div class="wld__legend">
+            <span class="wld__item wld__item--w"><b>${c.wins}</b><span>Won</span></span>
+            <span class="wld__item wld__item--d"><b>${c.draws}</b><span>Drawn</span></span>
+            <span class="wld__item wld__item--l"><b>${c.losses}</b><span>Lost</span></span>
+          </div>
+          <div class="statlist">
+            <div class="statlist__row"><span class="statlist__k">Win rate</span><span class="statlist__v">${rate}%</span></div>
+            <div class="statlist__row"><span class="statlist__k">Best streak</span><span class="statlist__v">${c.bestStreak}</span></div>
+            <div class="statlist__row"><span class="statlist__k">Rounds played</span><span class="statlist__v">${c.rounds}</span></div>
+            <div class="statlist__row"><span class="statlist__k">Matches played</span><span class="statlist__v">${c.matches}</span></div>
+            <div class="statlist__row"><span class="statlist__k">Champions</span><span class="statlist__v">${profile.unlocks.champions.length}<span class="den">/${CHAMPIONS.length}</span></span></div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="pmain">
+        <div class="pdash">
+          <div class="pcard">
+            <div class="pcard__head"><span class="pcard__ico">🖐️</span><h3 class="panel__title">Your throws</h3></div>
+            <div class="movebars">
+              ${["rock", "paper", "scissors"].map((m) => `
+                <div class="movebar"><span class="movebar__ic mv-${m}" data-icon="${m}">${ICONS[m]}</span>
+                  <div class="movebar__track"><i class="mv-${m}" style="width:${movePct(m)}%"></i></div><b>${movePct(m)}%</b></div>`).join("")}
+            </div>
+          </div>
+          <div class="pcard">
+            <div class="pcard__head"><span class="pcard__ico">🏅</span><h3 class="panel__title">Champion leaderboard <span class="muted">${(c.challengesWon || 0)}W / ${(c.challengesLost || 0)}L</span></h3></div>
+            ${leaderboardHTML(c)}
+          </div>
+        </div>
+
+        <div class="pcard">
+          <div class="pcard__head"><span class="pcard__ico">🏆</span><h3 class="panel__title">Achievements <span class="muted">${achUnlocked}/${ACHIEVEMENTS.length}</span></h3></div>
+          <div class="ach-grid">
+            ${ACHIEVEMENTS.map((a) => { const got = !!profile.achievements[a.id];
+              return `<div class="ach ${got ? "is-got" : ""}" title="${esc(a.desc)}"><span class="ach__ic">${got ? a.icon : ICONS.lock}</span><span class="ach__name">${esc(a.name)}</span><span class="ach__desc">${esc(a.desc)}</span></div>`; }).join("")}
+          </div>
+        </div>
+
+        <div class="pcard">
+          <div class="pcard__head"><span class="pcard__ico">🃏</span><h3 class="panel__title">Champions <span class="muted">${profile.unlocks.champions.length}/${CHAMPIONS.length} collected</span></h3></div>
+          <div class="gallery">
+            ${CHAMPIONS.map((ch) => { const got = champUnlocked(ch.id);
+              return `<div class="gitem ${got ? "" : "is-locked"}" title="${got ? esc(ch.name) : "Locked — " + esc(unlockHint(ch))}"><img src="${ch.img}" alt="${esc(ch.name)}" loading="lazy"/>${got ? "" : `<span class="gitem__lock">${ICONS.lock}<b>${esc(unlockHint(ch))}</b></span>`}<span class="gitem__name">${esc(ch.name)}</span></div>`; }).join("")}
+          </div>
+        </div>
+
+        <div class="pcard" id="onlineSections"></div>
+
+        <div class="pcard">
+          <div class="pcard__head"><span class="pcard__ico">🎨</span><h3 class="panel__title">Arena</h3></div>
+          <div class="arena-picker">
+            ${ARENAS.map((a) => { const got = arenaUnlocked(a.id), on = profile.settings.arena === a.id; const req = a.unlock === "start" ? "" : (ACH_BY_ID[a.unlock] ? ACH_BY_ID[a.unlock].name : "");
+              return `<button class="arena-swatch ${on ? "is-on" : ""} ${got ? "" : "is-locked"}" data-arena="${a.id}" ${got ? "" : "disabled"} title="${got ? esc(a.name) : `Unlock: ${esc(req)}`}"><span style="background:linear-gradient(120deg,${a.a},${a.b})"></span>${esc(a.name)}${got ? "" : (req ? ` · ${esc(req)}` : "")}</button>`; }).join("")}
+          </div>
+        </div>
       </div>
     </div>
-    <div class="prof-section">
-      <h3 class="panel__title">Arena</h3>
-      <div class="arena-picker">
-        ${ARENAS.map((a) => { const got = arenaUnlocked(a.id), on = profile.settings.arena === a.id; const req = a.unlock === "start" ? "" : (ACH_BY_ID[a.unlock] ? ACH_BY_ID[a.unlock].name : "");
-          return `<button class="arena-swatch ${on ? "is-on" : ""} ${got ? "" : "is-locked"}" data-arena="${a.id}" ${got ? "" : "disabled"} title="${got ? a.name : `Unlock: ${req}`}"><span style="background:linear-gradient(120deg,${a.a},${a.b})"></span>${a.name}${got ? "" : (req ? ` · ${req}` : "")}</button>`; }).join("")}
-      </div>
-    </div>
-    <div class="prof-section" id="onlineSections"></div>
 
     <div class="danger"><button class="link-btn danger__btn" id="resetBtn" type="button">Reset all progress</button></div>`;
 
