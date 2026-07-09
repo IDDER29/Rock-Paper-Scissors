@@ -9,6 +9,7 @@ import {
   profile, save, levelInfo, currentLevel, champUnlocked, arenaUnlocked,
   ensureDaily, dailyLabel, recordMatch, resetProfile,
 } from "./profile.js";
+import * as net from "./net.js";
 
 /* ---------- Icons ---------- */
 const ICONS = {
@@ -49,6 +50,7 @@ const el = {};
   "modeSwitch", "rivalSection", "champSub", "passCover", "passName", "passBtn",
   "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
   "themeBtn", "challengeBanner", "lengthSection",
+  "nameInput", "nameSaveBtn", "onlineNote",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
 el.resultTitle = document.getElementById("result-title");
@@ -209,6 +211,34 @@ function parseChallengeFromUrl() {
 }
 let pendingChallenge = null;
 
+/* ---------- Online identity ---------- */
+function identity() { return profile.settings.online || (profile.settings.online = { id: "", name: "" }); }
+function hasIdentity() { const o = identity(); return !!(o.id && o.name); }
+
+let _nameResolve = null;
+function ensureIdentity() {
+  return new Promise((resolve) => {
+    if (hasIdentity()) return resolve(identity());
+    const sheet = document.getElementById("nameSheet");
+    if (!sheet) return resolve(null);
+    _nameResolve = resolve;
+    el.nameInput.value = identity().name || "";
+    openSheet(sheet);
+    setTimeout(() => el.nameInput.focus(), 60);
+  });
+}
+async function saveName() {
+  const name = (el.nameInput.value || "").trim().slice(0, 24);
+  if (!name) { el.nameInput.focus(); return; }
+  const o = identity(); o.name = name;
+  try { if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); o.id = p.id; o.name = p.name; } }
+  catch {}
+  if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10);
+  save();
+  const sheet = document.getElementById("nameSheet"); closeSheet(sheet);
+  const r = _nameResolve; _nameResolve = null; if (r) r(identity());
+}
+
 /* ---------- Setup ---------- */
 const setup = { champ: null, rivalId: "duelist", length: 5, mode: "ai" };
 
@@ -226,8 +256,9 @@ function refreshSetupForMode() {
   if (el.challengeBanner) {
     if (isAccept && pendingChallenge) {
       const foe = CHAMPIONS.find((c) => c.id === pendingChallenge.c);
+      const who = pendingChallenge.online && pendingChallenge.name ? pendingChallenge.name : foe.name;
       el.challengeBanner.hidden = false;
-      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">🔗</span><img src="${foe.img}" alt=""/><div class="challenge-banner__body"><div class="challenge-banner__title">${foe.name} laid down a gauntlet</div><div class="challenge-banner__sub">Best of ${pendingChallenge.m.length} · out-read their throws to win.</div></div>`;
+      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">🔗</span><img src="${foe.img}" alt=""/><div class="challenge-banner__body"><div class="challenge-banner__title">${who} laid down a gauntlet</div><div class="challenge-banner__sub">Best of ${pendingChallenge.m.length}${pendingChallenge.online ? " · online" : ""} · out-read their throws to win.</div></div>`;
     } else el.challengeBanner.hidden = true;
   }
   const span = el.startBtn.querySelector("span");
@@ -304,7 +335,8 @@ function updateSummary() {
     el.setupSummary.innerHTML = `Set a best-of-${CHALLENGE_ROUNDS} gauntlet as <b>${setup.champ.name}</b> for a friend to beat.`;
   } else if (setup.mode === "accept") {
     const foe = pendingChallenge && CHAMPIONS.find((c) => c.id === pendingChallenge.c);
-    el.setupSummary.innerHTML = `Beat <b>${foe ? foe.name : "the"}</b>'s gauntlet as <b>${setup.champ.name}</b>.`;
+    const who = pendingChallenge && pendingChallenge.online && pendingChallenge.name ? pendingChallenge.name : (foe ? foe.name : "the");
+    el.setupSummary.innerHTML = `Beat <b>${who}</b>'s gauntlet as <b>${setup.champ.name}</b>.`;
   } else {
     const r = RIVAL_BY_ID[setup.rivalId];
     el.setupSummary.innerHTML = `Playing as <b>${setup.champ.name}</b> vs <b>${r.name}</b> · first to <b>${setup.length}</b>.`;
@@ -431,11 +463,20 @@ function gauntletThrow(move) {
   setStatus(`Throw ${idx + 1} of ${CHALLENGE_ROUNDS} — keep them guessing.`);
   setTimeout(() => { el.playerHand.classList.remove("win"); setGlyph(el.playerHand, "question"); el.playerHand.dataset.state = "idle"; el.verdict.className = "verdict"; el.verdict.textContent = ""; unlockMoves(); }, 800);
 }
-function finishGauntlet() {
+async function finishGauntlet() {
   match.active = false;
-  const payload = { v: 1, c: setup.champ.id, m: match.gauntletMoves.slice() };
-  const link = `${location.origin}${location.pathname}#c=${encodeChallenge(payload)}`;
-  openShareChallenge(link);
+  const moves = match.gauntletMoves.slice();
+  if (net.online()) {
+    try {
+      const me = await ensureIdentity();
+      if (me) {
+        const r = await net.createChallenge(me.id, me.name, setup.champ.id, moves);
+        return openShareChallenge(`${location.origin}${location.pathname}#g=${r.id}`);
+      }
+    } catch {}
+  }
+  const payload = { v: 1, c: setup.champ.id, m: moves };
+  openShareChallenge(`${location.origin}${location.pathname}#c=${encodeChallenge(payload)}`);
 }
 
 /* --- Challenge: accept & play against a recorded gauntlet --- */
@@ -444,15 +485,17 @@ function startAccept() {
   const p1 = setup.champ;
   const foe = CHAMPIONS.find((c) => c.id === pendingChallenge.c);
   const moves = pendingChallenge.m.slice();
+  const foeName = pendingChallenge.name || foe.name;
   Object.assign(match, {
     active: true, locked: false, round: 0, player: 0, cpu: 0, target: 99,
     playerHistory: [], cpuHistory: [], rounds: [], maxDeficit: 0, aiState: {},
     mode: "accept", fixedRounds: moves.length, challengeMoves: moves,
-    p1name: p1.name, p1img: p1.img, p2name: foe.name, p2img: foe.img,
+    p1name: p1.name, p1img: p1.img, p2name: foeName, p2img: foe.img,
+    online: !!pendingChallenge.online, challengeId: pendingChallenge.id || null,
   });
   el.playerAvatar.src = p1.img; el.playerAvatar.alt = p1.name; el.playerName.textContent = p1.name;
-  el.cpuAvatar.src = foe.img; el.cpuAvatar.alt = foe.name; el.cpuName.textContent = foe.name; el.cpuTag.textContent = "Challenger";
-  el.cpuHandCaption.textContent = foe.name;
+  el.cpuAvatar.src = foe.img; el.cpuAvatar.alt = foeName; el.cpuName.textContent = foeName; el.cpuTag.textContent = "Challenger";
+  el.cpuHandCaption.textContent = foeName;
   el.playerScore.textContent = "0"; el.cpuScore.textContent = "0";
   el.targetLabel.textContent = `Gauntlet · best of ${moves.length}`;
   el.pips.innerHTML = ""; for (let i = 0; i < moves.length; i++) { const s = document.createElement("span"); s.className = "pip"; el.pips.appendChild(s); }
@@ -606,6 +649,7 @@ let lastMatch = null; // snapshot for the share card
 function endMatch() {
   match.active = false;
   if (el.passCover) el.passCover.hidden = true;
+  if (el.onlineNote) el.onlineNote.hidden = true;
   if (match.mode === "pvp") return endMatchPvp();
   if (match.mode === "accept") return endMatchChallenge();
 
@@ -724,6 +768,22 @@ function endMatchChallenge() {
     p1name: setup.champ.name, p1img: setup.champ.img, p2name: foeName, p2img: match.p2img,
     pScore: match.player, cScore: match.cpu, taunt: taunts[match.round % taunts.length] };
 
+  // online: record the shared head-to-head result
+  if (match.online && match.challengeId && net.online()) {
+    el.onlineNote.hidden = false;
+    el.onlineNote.innerHTML = `<span class="h2h__saving">Saving to your rivalry…</span>`;
+    (async () => {
+      try {
+        const me = await ensureIdentity();
+        const r = await net.submitResult(match.challengeId, me.id, me.name, setup.champ.id, match.player, match.cpu);
+        const rv = r.rivalry;
+        const meWins = rv.a === me.id ? rv.aWins : rv.bWins;
+        const themWins = rv.a === me.id ? rv.bWins : rv.aWins;
+        el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${r.challengerName}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
+      } catch { el.onlineNote.hidden = true; }
+    })();
+  } else el.onlineNote.hidden = true;
+
   show("result"); injectIcons(el.resultCard); renderTopbar();
   if (won) { Confetti.burst(160); Sound.fanfare(); } else Sound.defeat();
   announce(won ? "You beat the gauntlet." : "The gauntlet held.");
@@ -811,6 +871,36 @@ function leaderboardHTML(c) {
   }).join("")}</ol>`;
 }
 
+async function renderOnlineSections() {
+  const host = document.getElementById("onlineSections");
+  if (!host) return;
+  if (!net.online()) {
+    host.innerHTML = `<h3 class="panel__title">Online play</h3><div class="career__empty"><span>🌐</span><div>Offline mode — challenge links still work and stats stay on this device. Deploy the backend to share records with friends.</div></div>`;
+    return;
+  }
+  const me = identity();
+  host.innerHTML = `<h3 class="panel__title">Rivalries <span class="muted">${me.name ? "as " + me.name : ""}</span></h3><div class="career__empty" id="rivLoad"><span>⏳</span><div>Loading your online records…</div></div>`;
+  if (!hasIdentity()) { document.getElementById("rivLoad").innerHTML = `<span>🌐</span><div>Set a display name (create or accept a challenge) to start building online rivalries.</div>`; return; }
+  try {
+    const [rv, lb] = await Promise.all([net.getRivalries(me.id).catch(() => ({ rivalries: [] })), net.getLeaderboard().catch(() => ({ leaderboard: [] }))]);
+    const rivals = rv.rivalries || [];
+    const rivalsHTML = rivals.length
+      ? `<ol class="lb">${rivals.map((r) => `<li class="lb__row lb__row--h2h"><span class="lb__vs">vs</span><span class="lb__name">${r.name}</span><span class="lb__bar"><i style="width:${r.games ? Math.round((r.youWins / r.games) * 100) : 0}%"></i></span><span class="lb__stat"><b class="me">${r.youWins}</b> – <b class="them">${r.themWins}</b></span></li>`).join("")}</ol>`
+      : `<div class="career__empty"><span>🤝</span><div>No rivalries yet — send a challenge link to a friend to start one.</div></div>`;
+    const meRow = (lb.leaderboard || []).find((x) => x.id === me.id);
+    const lbHTML = (lb.leaderboard || []).length
+      ? `<ol class="lb">${lb.leaderboard.map((x, i) => { const pct = x.played ? Math.round((x.wins / x.played) * 100) : 0; const medals = ["🥇", "🥈", "🥉"]; return `<li class="lb__row ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${x.name}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__bar"><i style="width:${pct}%"></i></span><span class="lb__stat"><b>${x.wins}</b>W · ${pct}%</span></li>`; }).join("")}</ol>`
+      : `<div class="career__empty"><span>🏆</span><div>The global leaderboard is empty — be the first to post a win.</div></div>`;
+    host.innerHTML = `
+      <h3 class="panel__title">Rivalries <span class="muted">${me.name ? "as " + me.name : ""}</span></h3>
+      ${rivalsHTML}
+      <h3 class="panel__title" style="margin-top:24px">Global leaderboard ${meRow ? `<span class="muted">you: #${(lb.leaderboard.findIndex((x) => x.id === me.id) + 1)}</span>` : ""}</h3>
+      ${lbHTML}`;
+  } catch {
+    host.innerHTML = `<h3 class="panel__title">Online play</h3><div class="career__empty"><span>⚠️</span><div>Couldn't reach the online server. Records will sync when it's back.</div></div>`;
+  }
+}
+
 function renderProfile() {
   if (!el.profileBody) return;
   const c = profile.career, info = levelInfo();
@@ -871,9 +961,12 @@ function renderProfile() {
           return `<button class="arena-swatch ${on ? "is-on" : ""} ${got ? "" : "is-locked"}" data-arena="${a.id}" ${got ? "" : "disabled"} title="${got ? a.name : `Unlocks at level ${a.unlockLevel}`}"><span style="background:linear-gradient(120deg,${a.a},${a.b})"></span>${a.name}${got ? "" : ` · Lv ${a.unlockLevel}`}</button>`; }).join("")}
       </div>
     </div>
+    <div class="prof-section" id="onlineSections"></div>
+
     <div class="danger"><button class="link-btn danger__btn" id="resetBtn" type="button">Reset all progress</button></div>`;
 
   injectIcons(el.profileBody);
+  renderOnlineSections();
   $$(".arena-swatch:not(.is-locked)", el.profileBody).forEach((b) => b.addEventListener("click", () => { applyArena(b.dataset.arena); renderProfile(); Sound.tick(); }));
   const reset = document.getElementById("resetBtn");
   if (reset) reset.addEventListener("click", () => {
@@ -1085,6 +1178,13 @@ function bind() {
   if (el.shareDownloadBtn) el.shareDownloadBtn.addEventListener("click", shareDownload);
   if (el.shareCopyBtn) el.shareCopyBtn.addEventListener("click", shareCopy);
 
+  const nameSheet = document.getElementById("nameSheet");
+  if (nameSheet) {
+    if (el.nameSaveBtn) el.nameSaveBtn.addEventListener("click", saveName);
+    if (el.nameInput) el.nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveName(); } });
+    $$("[data-close]", nameSheet).forEach((b) => b.addEventListener("click", () => { closeSheet(nameSheet); const r = _nameResolve; _nameResolve = null; if (r) r(hasIdentity() ? identity() : null); }));
+  }
+
   el.soundBtn.addEventListener("click", toggleSound);
   el.soundBtn.setAttribute("aria-pressed", String(soundOn));
   if (el.themeBtn) el.themeBtn.addEventListener("click", toggleTheme);
@@ -1099,7 +1199,22 @@ function registerSW() {
 }
 
 /* ---------- Boot ---------- */
-function boot() {
+async function resolvePending() {
+  const g = (location.hash || "").match(/[#&]g=([A-Za-z0-9_-]+)/);
+  if (g) {
+    if (!net.online()) { toast("This challenge needs the online server. Playing offline."); return null; }
+    try {
+      const c = await net.getChallenge(g[1]);
+      if (c && Array.isArray(c.moves) && c.moves.length && CHAMPIONS.find((x) => x.id === c.champId)) {
+        return { c: c.champId, m: c.moves, online: true, id: c.id, name: c.name };
+      }
+    } catch { toast("Couldn't load that challenge."); }
+    return null;
+  }
+  return parseChallengeFromUrl(); // offline embed (#c=)
+}
+
+async function boot() {
   applyTheme(profile.settings.theme || "dark");
   applyArena(profile.settings.arena || "nebula");
   registerSW();
@@ -1107,9 +1222,11 @@ function boot() {
   buildRivalPicker();
   bind();
   renderTopbar();
-  pendingChallenge = parseChallengeFromUrl();
-  if (pendingChallenge) { setup.mode = "accept"; show("setup"); }
-  else show("home");
+  pendingChallenge = await resolvePending();
+  if (pendingChallenge) {
+    setup.mode = "accept"; show("setup");
+    if (pendingChallenge.online && !hasIdentity()) ensureIdentity();
+  } else show("home");
   requestAnimationFrame(() => $$(".reveal").forEach((r) => { r.style.animationDelay = (parseInt(r.dataset.r || "1", 10) - 1) * 90 + "ms"; r.classList.add("in"); }));
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

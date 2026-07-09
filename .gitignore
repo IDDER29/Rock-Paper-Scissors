@@ -3,3 +3,4 @@ package.json
 package-lock.json
 _*.mjs
 scratch-*.mjs
+server/data.json

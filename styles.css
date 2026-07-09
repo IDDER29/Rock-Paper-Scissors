@@ -726,6 +726,23 @@ body:not([data-screen="loading"]) [data-screen] { /* noop */ }
 .lb__stat { font-size: .84rem; color: var(--text-dim); white-space: nowrap; }
 .lb__stat b { color: var(--text); }
 @media (max-width: 560px) { .lb__row { grid-template-columns: 28px 34px 1fr auto; } .lb__bar { display: none; } }
+.lb__row--h2h { grid-template-columns: 34px 1fr 1.4fr auto; }
+.lb__row--you { border-color: var(--violet); background: rgba(139,107,255,.1); }
+.lb__vs { font-size: .8rem; color: var(--text-dim); text-align: center; }
+.lb__name em { font-style: normal; color: var(--violet-2); font-size: .82rem; }
+.lb__stat .me { color: var(--violet-2); } .lb__stat .them { color: var(--scissors); }
+@media (max-width: 560px) { .lb__row--h2h { grid-template-columns: 30px 1fr auto; } }
+
+/* Name dialog */
+.name-input { width: 100%; padding: 14px 16px; border-radius: var(--r-md); border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); font: inherit; font-size: 1.05rem; margin: 4px 0 18px; outline: none; transition: border-color .2s, box-shadow .2s; }
+.name-input:focus { border-color: var(--violet); box-shadow: var(--glow-violet); }
+
+/* Online head-to-head note on the result screen */
+.h2h { display: inline-flex; align-items: center; gap: 12px; margin: 14px auto 0; padding: 8px 16px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--surface); }
+.h2h__saving { color: var(--text-dim); font-size: .88rem; }
+.h2h__label { font-size: .82rem; color: var(--text-soft); }
+.h2h__score { font-family: var(--display); font-weight: 700; font-size: 1.1rem; }
+.h2h__score .me { color: var(--violet-2); } .h2h__score .them { color: var(--scissors); } .h2h__score .sep { color: var(--text-dim); margin: 0 6px; }
 
 @media (max-width: 620px) {
   .prof-hero { gap: 14px; }

@@ -30,11 +30,15 @@ self‑contained static web app — no framework, no build step, no backend.
 - **Profile** — level ring, career stats, throw distribution, achievements,
   champion gallery, arena picker, and a **champion leaderboard** ranked by wins.
 
-### Share
+### Share & play online
 - **Match cards** — a rendered result image ready to post, via the Web Share
   API (share the PNG), download, or copy link.
-- **Challenge links** — encode your gauntlet into a URL; friends play it on
-  their own device.
+- **Challenge links** — set a gauntlet of throws and send a friend a link;
+  they play it on their own device.
+- **Optional online mode** — deploy the tiny backend in [`server/`](server/)
+  and set `API_BASE` in `js/config.js` to unlock a **shared, persistent
+  head‑to‑head record** and a **global leaderboard** both players see. Leave
+  it blank and everything runs fully offline (links just embed the moves).
 
 ### Polish
 - **Installable PWA** — add to home screen and **play fully offline**.
@@ -55,6 +59,8 @@ Vanilla HTML, CSS, and ES‑module JavaScript. State persists in `localStorage`.
 | `js/data.js` | Champions, rivals, arenas, achievements, XP tables |
 | `js/profile.js` | Player profile, progression, achievements, daily |
 | `js/app.js` | Engine, AI, FX, share cards, routing |
+| `js/net.js`, `js/config.js` | Online API client + backend URL config |
+| `server/` | Optional zero‑dependency backend (records + leaderboard) |
 | `sw.js`, `manifest.webmanifest` | PWA offline shell + install metadata |
 | `img/` | Champion avatars, artwork, app icons |
 

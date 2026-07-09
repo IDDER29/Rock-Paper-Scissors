@@ -24,7 +24,7 @@ function defaults() {
     unlocks: { champions: [...STARTERS], arenas: ["nebula"], titles: [] },
     achievements: {},
     daily: null,
-    settings: { theme: "dark", sound: true, arena: "nebula" },
+    settings: { theme: "dark", sound: true, arena: "nebula", online: { id: "", name: "" } },
   };
 }
 
@@ -42,6 +42,7 @@ function hydrate(raw) {
   p.unlocks.arenas = Array.from(new Set(["nebula", ...(p.unlocks.arenas || [])]));
   p.achievements = { ...(raw.achievements || {}) };
   p.settings = { ...base.settings, ...(raw.settings || {}) };
+  p.settings.online = { ...base.settings.online, ...((raw.settings || {}).online || {}) };
   return p;
 }
 

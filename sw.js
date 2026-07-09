@@ -1,5 +1,5 @@
 /* RIVALS service worker — offline app shell + runtime asset cache */
-const VERSION = "rivals-v1";
+const VERSION = "rivals-v2";
 const CORE = [
   "./",
   "./index.html",
@@ -7,6 +7,8 @@ const CORE = [
   "./js/app.js",
   "./js/data.js",
   "./js/profile.js",
+  "./js/net.js",
+  "./js/config.js",
   "./manifest.webmanifest",
   "./img/icon-192.png",
   "./img/icon-512.png",
