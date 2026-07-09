@@ -418,9 +418,9 @@
 
     // verdict text
     const vmap = {
-      win: { cls: "v-win", txt: "You win the round", snd: Sound.win },
-      lose: { cls: "v-lose", txt: "Rival takes it", snd: Sound.lose },
-      draw: { cls: "v-draw", txt: "Stalemate", snd: Sound.draw },
+      win: { cls: "v-win", txt: "You win!", snd: Sound.win },
+      lose: { cls: "v-lose", txt: "Rival wins", snd: Sound.lose },
+      draw: { cls: "v-draw", txt: "Draw", snd: Sound.draw },
     };
     const v = vmap[result];
     el.verdict.className = `verdict show ${v.cls}`;

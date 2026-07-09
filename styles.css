@@ -358,7 +358,7 @@ body:not([data-screen="loading"]) [data-screen] { /* noop */ }
 .countdown .go { background: var(--grad-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .countdown span { display: inline-block; animation: cdIn .3s var(--ease-back); }
 @keyframes cdIn { from { opacity: 0; transform: scale(.5) translateY(6px); } }
-.verdict { position: absolute; font-family: var(--display); font-weight: 700; font-size: clamp(1.1rem, 3vw, 1.7rem); text-align: center; opacity: 0; }
+.verdict { position: absolute; font-family: var(--display); font-weight: 700; font-size: clamp(1.1rem, 3vw, 1.7rem); text-align: center; opacity: 0; white-space: nowrap; }
 .verdict.show { animation: verdictIn .5s var(--ease-back) forwards; }
 .verdict.v-win { color: var(--win); } .verdict.v-lose { color: var(--lose); } .verdict.v-draw { color: var(--draw); }
 @keyframes verdictIn { from { opacity: 0; transform: translateY(10px) scale(.9); } to { opacity: 1; transform: none; } }
