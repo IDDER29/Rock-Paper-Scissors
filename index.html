@@ -352,10 +352,18 @@
       <button class="sheet__close" data-close type="button" aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
-      <h2 class="sheet__title" id="name-title">Choose a display name</h2>
-      <p class="sheet__lede">This is how rivals see you online, on records and the leaderboard.</p>
-      <input class="name-input" id="nameInput" type="text" maxlength="24" placeholder="e.g. Sara" autocomplete="off" />
-      <button class="btn btn--primary btn--block" id="nameSaveBtn" type="button">Save &amp; continue</button>
+      <h2 class="sheet__title" id="name-title">Play online</h2>
+      <div class="auth-tabs" id="authTabs" role="tablist">
+        <button type="button" class="auth-tab is-active" data-authmode="guest" role="tab">Guest</button>
+        <button type="button" class="auth-tab" data-authmode="login" role="tab">Log in</button>
+        <button type="button" class="auth-tab" data-authmode="signup" role="tab">Sign up</button>
+      </div>
+      <p class="sheet__lede" id="authHint">Pick a display name to play now. Create an account to keep your rating and rivalries across devices.</p>
+      <input class="name-input" id="authUsername" type="text" maxlength="20" placeholder="Username" autocomplete="username" hidden />
+      <input class="name-input" id="authPassword" type="password" maxlength="64" placeholder="Password" autocomplete="current-password" hidden />
+      <input class="name-input" id="nameInput" type="text" maxlength="24" placeholder="Display name" autocomplete="off" />
+      <p class="auth-error" id="authError" hidden></p>
+      <button class="btn btn--primary btn--block" id="nameSaveBtn" type="button">Play as guest</button>
     </div>
   </div>
 

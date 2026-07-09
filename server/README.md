@@ -52,10 +52,10 @@ browsers block calls from HTTPS pages to plain HTTP).
 
 | Host | How |
 | --- | --- |
-| **Render** | New → Web Service → build: *(none)* → start: `node server/server.js`. Add a persistent disk if you want data to survive redeploys, and set `DATA_FILE` to a path on it. |
-| **Fly.io** | `fly launch` (Node), start command `node server/server.js`, attach a volume and set `DATA_FILE` to it. |
+| **Render** | New → Web Service → build: *(none)* → start: `node server/server.js`. Add a persistent disk so the SQLite file survives redeploys, and set `DB_FILE` to a path on it. |
+| **Fly.io** | `fly launch` (Node), start command `node server/server.js`, attach a volume and set `DB_FILE` to it. |
 | **Railway / Cyclic** | New project from repo, start command `node server/server.js`. |
-| **Deno Deploy / Cloudflare Workers** | Works too, but the JSON-file store needs swapping for their KV/storage (the HTTP routes are easy to port). |
+| **Deno Deploy / Cloudflare Workers** | Works too, but the SQLite store needs swapping for their KV/storage (the HTTP routes are easy to port). |
 
 After deploying, put the public URL in `js/config.js`:
 
@@ -107,5 +107,6 @@ Commit that and your GitHub Pages build is now online. CORS is already open
 - **Hosting for live:** Server-Sent Events need a host that doesn't buffer
   responses (Render, Fly, Railway all work; the server sets `X-Accel-Buffering:
   no`). Serverless platforms with short request limits may cut SSE streams.
-- **Storage:** the JSON file keeps the last 5,000 games and holds live rooms in
-  memory (idle rooms are reaped). Swap for a real DB for anything serious.
+- **Storage:** completed games and accounts persist in the SQLite file; live
+  rooms are held in memory (idle rooms are reaped). For very high concurrency,
+  move to managed Postgres + Redis.

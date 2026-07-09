@@ -14,12 +14,20 @@ async function api(pathname, opts = {}) {
   const headers = { "Content-Type": "application/json" };
   if (TOKEN) headers.Authorization = "Bearer " + TOKEN;
   const res = await fetch(API_BASE + pathname, { headers, ...opts });
-  if (!res.ok) throw new Error("api " + res.status);
+  if (!res.ok) {
+    let msg = "Something went wrong (" + res.status + ")";
+    try { const j = await res.json(); if (j && j.error) msg = j.error; } catch {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 
 export const registerPlayer = (name, id) =>
   api("/api/player", { method: "POST", body: JSON.stringify({ name, id }) });
+export const signup = (username, password, name) =>
+  api("/api/signup", { method: "POST", body: JSON.stringify({ username, password, name }) });
+export const login = (username, password) =>
+  api("/api/login", { method: "POST", body: JSON.stringify({ username, password }) });
 
 export const createChallenge = (challengerId, name, champId, moves) =>
   api("/api/challenge", { method: "POST", body: JSON.stringify({ challengerId, name, champId, moves }) });

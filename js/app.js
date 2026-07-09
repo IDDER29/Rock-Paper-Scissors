@@ -53,6 +53,7 @@ const el = {};
   "progressBlock", "shareBtn", "sharePreview", "shareNativeBtn", "shareDownloadBtn", "shareCopyBtn",
   "themeBtn", "challengeBanner", "lengthSection",
   "nameInput", "nameSaveBtn", "onlineNote", "ratingNote",
+  "authTabs", "authUsername", "authPassword", "authHint", "authError",
   "liveWait", "liveWaitTitle", "liveWaitSub", "liveCode", "liveCopyBtn", "liveCancelBtn",
 ].forEach((id) => (el[id] = document.getElementById(id)));
 el.battleStatus = document.getElementById("battle-status");
@@ -216,8 +217,9 @@ function parseChallengeFromUrl() {
 let pendingChallenge = null;
 
 /* ---------- Online identity ---------- */
-function identity() { return profile.settings.online || (profile.settings.online = { id: "", name: "" }); }
+function identity() { return profile.settings.online || (profile.settings.online = { id: "", name: "", username: "", rating: 0, token: "" }); }
 function hasIdentity() { const o = identity(); return !!(o.id && o.name); }
+function isSignedIn() { return !!identity().username; }
 
 function renderRatingNote(rt) {
   if (!el.ratingNote) return;
@@ -229,6 +231,60 @@ function renderRatingNote(rt) {
 }
 
 let _nameResolve = null;
+let authMode = "guest"; // "guest" | "login" | "signup"
+
+/* Persist a server account/guest identity into the profile + net client. */
+function applyAccount(p) {
+  const o = identity();
+  if (p.id) o.id = p.id;
+  if (p.name) o.name = p.name;
+  o.username = p.username || "";
+  if (p.rating != null) o.rating = p.rating;
+  if (p.token) { o.token = p.token; net.setToken(p.token); }
+  if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10);
+  save();
+  renderTopbar();
+}
+
+function setAuthError(msg) {
+  if (!el.authError) return;
+  if (!msg) { el.authError.hidden = true; el.authError.textContent = ""; return; }
+  el.authError.hidden = false; el.authError.textContent = msg;
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  setAuthError("");
+  // Offline: only guest is possible.
+  const canAccount = net.online();
+  if (el.authTabs) {
+    $$(".auth-tab", el.authTabs).forEach((b) => {
+      const m = b.dataset.authmode;
+      b.classList.toggle("is-active", m === mode);
+      b.setAttribute("aria-selected", String(m === mode));
+      if (m !== "guest") b.hidden = !canAccount;
+    });
+  }
+  const showUser = mode !== "guest";
+  const showPass = mode !== "guest";
+  const showName = mode !== "login";
+  if (el.authUsername) { el.authUsername.hidden = !showUser; el.authUsername.autocomplete = mode === "signup" ? "username" : "username"; }
+  if (el.authPassword) { el.authPassword.hidden = !showPass; el.authPassword.autocomplete = mode === "signup" ? "new-password" : "current-password"; }
+  if (el.nameInput) { el.nameInput.hidden = !showName; el.nameInput.placeholder = "Display name"; }
+  if (el.authHint) {
+    el.authHint.textContent =
+      mode === "login" ? "Welcome back — log in to sync your rating and rivalries to this device."
+      : mode === "signup" ? "Create an account to keep your rating and rivalries across every device."
+      : "Pick a display name to play now. Create an account to keep your progress across devices.";
+  }
+  if (el.nameSaveBtn) {
+    const span = el.nameSaveBtn;
+    span.textContent = mode === "login" ? "Log in" : mode === "signup" ? "Create account" : "Play as guest";
+  }
+  // Focus the first relevant field.
+  setTimeout(() => { (showUser ? el.authUsername : el.nameInput)?.focus(); }, 60);
+}
+
 function ensureIdentity() {
   return new Promise((resolve) => {
     if (hasIdentity()) return resolve(identity());
@@ -236,20 +292,65 @@ function ensureIdentity() {
     if (!sheet) return resolve(null);
     _nameResolve = resolve;
     el.nameInput.value = identity().name || "";
+    if (el.authUsername) el.authUsername.value = "";
+    if (el.authPassword) el.authPassword.value = "";
+    setAuthMode("guest");
     openSheet(sheet);
     setTimeout(() => el.nameInput.focus(), 60);
   });
 }
-async function saveName() {
+
+async function submitAuth() {
+  setAuthError("");
   const name = (el.nameInput.value || "").trim().slice(0, 24);
-  if (!name) { el.nameInput.focus(); return; }
-  const o = identity(); o.name = name;
-  try { if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); o.id = p.id; o.name = p.name; if (p.rating != null) o.rating = p.rating; if (p.token) { o.token = p.token; net.setToken(p.token); } } }
-  catch {}
-  if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10);
-  save();
+  const username = (el.authUsername?.value || "").trim().toLowerCase();
+  const password = el.authPassword?.value || "";
+
+  if (authMode === "guest") {
+    if (!name) { el.nameInput.focus(); return; }
+    const o = identity(); o.name = name; o.username = "";
+    try {
+      if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); applyAccount({ ...p, username: "" }); }
+      else { if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10); save(); }
+    } catch { if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10); save(); }
+    return finishAuth();
+  }
+
+  // login / signup need the backend.
+  if (!net.online()) { setAuthError("Online play is offline right now — play as a guest instead."); return; }
+  if (username.length < 3) { setAuthError("Username must be at least 3 characters."); el.authUsername.focus(); return; }
+  if (password.length < 6) { setAuthError("Password must be at least 6 characters."); el.authPassword.focus(); return; }
+  if (authMode === "signup" && !name) { setAuthError("Pick a display name."); el.nameInput.focus(); return; }
+
+  const btn = el.nameSaveBtn, prev = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = authMode === "signup" ? "Creating…" : "Logging in…"; }
+  try {
+    const p = authMode === "signup"
+      ? await net.signup(username, password, name)
+      : await net.login(username, password);
+    applyAccount(p);
+    finishAuth();
+  } catch (e) {
+    setAuthError((e && e.message) || "Something went wrong. Try again.");
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
+    return;
+  }
+  if (btn) { btn.disabled = false; }
+}
+
+function finishAuth() {
   const sheet = document.getElementById("nameSheet"); closeSheet(sheet);
   const r = _nameResolve; _nameResolve = null; if (r) r(identity());
+}
+
+function logOut() {
+  const o = identity();
+  o.id = ""; o.name = ""; o.username = ""; o.rating = 0; o.token = "";
+  net.setToken("");
+  save();
+  renderTopbar();
+  renderProfile();
+  toast("Logged out.");
 }
 
 /* ---------- Setup ---------- */
@@ -1133,6 +1234,43 @@ async function renderOnlineSections() {
   }
 }
 
+function accountCardHTML() {
+  const o = identity();
+  if (isSignedIn()) {
+    return `<div class="account-card is-in">
+      <div class="account-card__body">
+        <span class="account-card__ic">✓</span>
+        <div><div class="account-card__title">Signed in as @${esc(o.username)}</div>
+        <div class="account-card__sub">${esc(o.name)} · rating & rivalries sync across your devices.</div></div>
+      </div>
+      <button class="btn btn--ghost btn--sm" id="logoutBtn" type="button">Log out</button>
+    </div>`;
+  }
+  const canAccount = net.online();
+  return `<div class="account-card">
+    <div class="account-card__body">
+      <span class="account-card__ic">☁︎</span>
+      <div><div class="account-card__title">${hasIdentity() ? "Playing as " + esc(o.name || "guest") : "Guest"}</div>
+      <div class="account-card__sub">${canAccount ? "Create an account to keep your rating and rivalries on every device." : "Online accounts are offline right now."}</div></div>
+    </div>
+    ${canAccount ? `<div class="account-card__actions">
+      <button class="btn btn--ghost btn--sm" id="acctLoginBtn" type="button">Log in</button>
+      <button class="btn btn--primary btn--sm" id="acctSignupBtn" type="button">Sign up</button>
+    </div>` : ""}
+  </div>`;
+}
+
+async function openAuthSheet(mode) {
+  const sheet = document.getElementById("nameSheet");
+  if (!sheet) return;
+  el.nameInput.value = identity().name || "";
+  if (el.authUsername) el.authUsername.value = "";
+  if (el.authPassword) el.authPassword.value = "";
+  _nameResolve = () => { renderProfile(); renderTopbar(); };
+  setAuthMode(mode || "guest");
+  openSheet(sheet);
+}
+
 function renderProfile() {
   if (!el.profileBody) return;
   const c = profile.career;
@@ -1153,6 +1291,7 @@ function renderProfile() {
           : (net.online() ? "Play a Quick Match or a friend online to earn your first rating." : "Rating is earned online. Champions: " + profile.unlocks.champions.length + "/" + CHAMPIONS.length + " collected.")}</p>
       </div>
     </div>
+    ${accountCardHTML()}
     <div class="prof-stats">
       <div class="stat"><div class="stat__num is-win">${c.wins}</div><div class="stat__label">Wins</div></div>
       <div class="stat"><div class="stat__num is-lose">${c.losses}</div><div class="stat__label">Losses</div></div>
@@ -1201,6 +1340,12 @@ function renderProfile() {
 
   injectIcons(el.profileBody);
   renderOnlineSections();
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) logoutBtn.addEventListener("click", logOut);
+  const acctLogin = document.getElementById("acctLoginBtn");
+  if (acctLogin) acctLogin.addEventListener("click", () => openAuthSheet("login"));
+  const acctSignup = document.getElementById("acctSignupBtn");
+  if (acctSignup) acctSignup.addEventListener("click", () => openAuthSheet("signup"));
   $$(".arena-swatch:not(.is-locked)", el.profileBody).forEach((b) => b.addEventListener("click", () => { applyArena(b.dataset.arena); renderProfile(); Sound.tick(); }));
   const reset = document.getElementById("resetBtn");
   if (reset) reset.addEventListener("click", () => {
@@ -1416,8 +1561,12 @@ function bind() {
 
   const nameSheet = document.getElementById("nameSheet");
   if (nameSheet) {
-    if (el.nameSaveBtn) el.nameSaveBtn.addEventListener("click", saveName);
-    if (el.nameInput) el.nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveName(); } });
+    if (el.authTabs) $$(".auth-tab", el.authTabs).forEach((b) => b.addEventListener("click", () => setAuthMode(b.dataset.authmode)));
+    if (el.nameSaveBtn) el.nameSaveBtn.addEventListener("click", submitAuth);
+    const onEnter = (e) => { if (e.key === "Enter") { e.preventDefault(); submitAuth(); } };
+    if (el.nameInput) el.nameInput.addEventListener("keydown", onEnter);
+    if (el.authUsername) el.authUsername.addEventListener("keydown", onEnter);
+    if (el.authPassword) el.authPassword.addEventListener("keydown", onEnter);
     $$("[data-close]", nameSheet).forEach((b) => b.addEventListener("click", () => { closeSheet(nameSheet); const r = _nameResolve; _nameResolve = null; if (r) r(hasIdentity() ? identity() : null); }));
   }
 
