@@ -7,11 +7,13 @@ import { API_BASE } from "./config.js";
 
 export const online = () => !!API_BASE;
 
+let TOKEN = "";
+export const setToken = (t) => { TOKEN = t || ""; };
+
 async function api(pathname, opts = {}) {
-  const res = await fetch(API_BASE + pathname, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  const headers = { "Content-Type": "application/json" };
+  if (TOKEN) headers.Authorization = "Bearer " + TOKEN;
+  const res = await fetch(API_BASE + pathname, { headers, ...opts });
   if (!res.ok) throw new Error("api " + res.status);
   return res.json();
 }

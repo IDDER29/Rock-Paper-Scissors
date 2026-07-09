@@ -29,17 +29,42 @@ function save() {
 
 const uuid = () => crypto.randomUUID();
 const now = () => Date.now();
-const clampName = (n) => String(n || "Player").trim().slice(0, 24) || "Player";
+/* strip HTML/control chars + collapse whitespace (defence-in-depth vs XSS/impersonation) */
+const clampName = (n) => String(n || "Player").replace(/[<>&"'`]/g, "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 24) || "Player";
 
 const BASE_RATING = 1200;
 function upsertPlayer(id, name) {
   if (id && db.players[id]) { if (name) db.players[id].name = clampName(name); if (db.players[id].rating == null) db.players[id].rating = BASE_RATING; return db.players[id]; }
   const nid = id || uuid();
-  db.players[nid] = db.players[nid] || { id: nid, name: clampName(name), wins: 0, losses: 0, draws: 0, rating: BASE_RATING, created: now() };
+  db.players[nid] = db.players[nid] || { id: nid, name: clampName(name), wins: 0, losses: 0, draws: 0, rating: BASE_RATING, token: "", created: now() };
   if (name) db.players[nid].name = clampName(name);
   if (db.players[nid].rating == null) db.players[nid].rating = BASE_RATING;
   return db.players[nid];
 }
+
+/* ---------- lightweight auth (bearer token, trust-on-first-use) ---------- */
+function tokenFrom(req, body) {
+  const h = req.headers.authorization || "";
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return (m && m[1]) || (body && body.token) || null;
+}
+/* true if this request is allowed to act as playerId. Binds the token on first use. */
+function authAs(playerId, tok) {
+  const p = db.players[playerId];
+  if (!p || !tok) return false;
+  if (!p.token) { p.token = tok; return true; }
+  return p.token === tok;
+}
+
+/* ---------- rate limiting (per-IP token bucket) ---------- */
+const rlHits = new Map();
+function rateLimited(ip) {
+  const t = now(), w = rlHits.get(ip) || { n: 0, reset: t + 10000 };
+  if (t > w.reset) { w.n = 0; w.reset = t + 10000; }
+  w.n++; rlHits.set(ip, w);
+  return w.n > 100; // 100 requests / 10s / IP
+}
+setInterval(() => { const t = now(); for (const [ip, w] of rlHits) if (t > w.reset + 60000) rlHits.delete(ip); }, 120000).unref?.();
 
 /* Elo update between two players. winner = aId | bId | null (draw). K=32, floor 100. */
 function applyElo(aId, bId, winner) {
@@ -155,7 +180,7 @@ function sendJSON(res, code, obj) {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Cache-Control": "no-store",
   });
   res.end(body);
@@ -172,18 +197,25 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return sendJSON(res, 204, {});
   const url = new URL(req.url, "http://x");
   const p = url.pathname;
+  const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || (req.socket && req.socket.remoteAddress) || "?";
+  if (p !== "/" && rateLimited(ip)) return sendJSON(res, 429, { error: "too many requests" });
 
   try {
     if (req.method === "GET" && p === "/") return sendJSON(res, 200, { ok: true, service: "RIVALS API", players: Object.keys(db.players).length, games: db.games.length });
 
     if (req.method === "POST" && p === "/api/player") {
       const b = await readBody(req);
-      const player = upsertPlayer(b.id, b.name); save();
-      return sendJSON(res, 200, { id: player.id, name: player.name, rating: player.rating });
+      const tok = tokenFrom(req, b);
+      if (b.id && db.players[b.id] && db.players[b.id].token && db.players[b.id].token !== tok) return sendJSON(res, 401, { error: "unauthorized" });
+      const player = upsertPlayer(b.id, b.name);
+      if (!player.token) player.token = tok || uuid();
+      save();
+      return sendJSON(res, 200, { id: player.id, name: player.name, rating: player.rating, token: player.token });
     }
 
     if (req.method === "POST" && p === "/api/challenge") {
       const b = await readBody(req);
+      if (!authAs(b.challengerId, tokenFrom(req, b))) return sendJSON(res, 401, { error: "unauthorized" });
       const moves = Array.isArray(b.moves) ? b.moves.filter((m) => MOVES.includes(m)).slice(0, 15) : [];
       if (!moves.length || !b.champId) return sendJSON(res, 400, { error: "invalid challenge" });
       const challenger = upsertPlayer(b.challengerId, b.name);
@@ -202,6 +234,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && p === "/api/result") {
       const b = await readBody(req);
+      if (!authAs(b.opponentId, tokenFrom(req, b))) return sendJSON(res, 401, { error: "unauthorized" });
       const c = db.challenges[b.challengeId];
       if (!c) return sendJSON(res, 404, { error: "challenge not found" });
       const opp = upsertPlayer(b.opponentId, b.opponentName);
@@ -210,14 +243,15 @@ const server = http.createServer(async (req, res) => {
       const oppWon = pScore > cScore, chalWon = cScore > pScore;
       const winner = oppWon ? opp.id : chalWon ? c.challengerId : null;
       const chal = db.players[c.challengerId] || upsertPlayer(c.challengerId, c.name);
+      // Challenge scores are client-reported -> record casual W/L + head-to-head only.
+      // Rating (Elo) is NOT touched here; only server-judged live/quick matches are rated.
       if (oppWon) { opp.wins++; chal.losses++; }
       else if (chalWon) { chal.wins++; opp.losses++; }
       else { opp.draws++; chal.draws++; }
-      db.games.push({ challengeId: c.id, challengerId: c.challengerId, challengerName: c.name, opponentId: opp.id, opponentName: opp.name, champChal: c.champId, champOpp: String(b.champId || "").slice(0, 24), pScore, cScore, winner, at: now() });
+      db.games.push({ challengeId: c.id, challengerId: c.challengerId, challengerName: c.name, opponentId: opp.id, opponentName: opp.name, champChal: c.champId, champOpp: String(b.champId || "").slice(0, 24), pScore, cScore, winner, at: now(), rated: false });
       if (db.games.length > 5000) db.games = db.games.slice(-5000);
-      const ratings = applyElo(c.challengerId, opp.id, winner);
       save();
-      return sendJSON(res, 200, { rivalry: rivalryBetween(opp.id, c.challengerId), challengerName: c.name, challengerId: c.challengerId, ratings });
+      return sendJSON(res, 200, { rivalry: rivalryBetween(opp.id, c.challengerId), challengerName: c.name, challengerId: c.challengerId });
     }
 
     if (req.method === "GET" && p === "/api/rivalries") {
@@ -233,6 +267,7 @@ const server = http.createServer(async (req, res) => {
     /* ---- live rooms ---- */
     if (req.method === "POST" && p === "/api/room") {
       const b = await readBody(req);
+      if (!authAs(b.playerId, tokenFrom(req, b))) return sendJSON(res, 401, { error: "unauthorized" });
       const me = upsertPlayer(b.playerId, b.name); save();
       const id = uuid().slice(0, 6);
       rooms[id] = { id, target: Math.min(Math.max((b.target | 0) || 5, 1), 9), status: "waiting", round: 1, order: [me.id], players: { [me.id]: { name: me.name, champId: String(b.champId || "").slice(0, 24), score: 0, connected: false } }, picks: {}, history: [], streams: [], matchWinner: null, createdAt: now(), updated: now() };
@@ -241,6 +276,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && p === "/api/matchmake") {
       const b = await readBody(req);
+      if (!authAs(b.playerId, tokenFrom(req, b))) return sendJSON(res, 401, { error: "unauthorized" });
       const me = upsertPlayer(b.playerId, b.name); save();
       const champId = String(b.champId || "").slice(0, 24);
       const target = Math.min(Math.max((b.target | 0) || 5, 1), 9);
@@ -266,7 +302,9 @@ const server = http.createServer(async (req, res) => {
     }
     if ((m = p.match(/^\/api\/room\/([^/]+)\/join$/)) && req.method === "POST") {
       const room = rooms[m[1]]; if (!room) return sendJSON(res, 404, { error: "room not found" });
-      const b = await readBody(req); const me = upsertPlayer(b.playerId, b.name); save();
+      const b = await readBody(req);
+      if (!authAs(b.playerId, tokenFrom(req, b))) return sendJSON(res, 401, { error: "unauthorized" });
+      const me = upsertPlayer(b.playerId, b.name); save();
       if (!room.order.includes(me.id)) {
         if (room.order.length >= 2) return sendJSON(res, 409, { error: "room full" });
         room.order.push(me.id);
@@ -296,6 +334,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/room\/([^/]+)\/move$/)) && req.method === "POST") {
       const room = rooms[m[1]]; if (!room) return sendJSON(res, 404, { error: "room not found" });
       const b = await readBody(req);
+      if (!authAs(b.playerId, tokenFrom(req, b))) return sendJSON(res, 401, { error: "unauthorized" });
       if (room.status !== "playing") return sendJSON(res, 409, { error: "not playing" });
       if (!MOVES.includes(b.move) || !room.players[b.playerId]) return sendJSON(res, 400, { error: "bad move" });
       const r = room.round; room.picks[r] = room.picks[r] || {};
@@ -308,7 +347,7 @@ const server = http.createServer(async (req, res) => {
     }
     if ((m = p.match(/^\/api\/room\/([^/]+)\/leave$/)) && req.method === "POST") {
       const room = rooms[m[1]];
-      if (room) { const b = await readBody(req); if (room.players[b.playerId]) room.players[b.playerId].connected = false; broadcastState(room); }
+      if (room) { const b = await readBody(req); if (authAs(b.playerId, tokenFrom(req, b)) && room.players[b.playerId]) room.players[b.playerId].connected = false; broadcastState(room); }
       return sendJSON(res, 200, { ok: true });
     }
 

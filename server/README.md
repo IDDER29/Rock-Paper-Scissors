@@ -82,14 +82,23 @@ Commit that and your GitHub Pages build is now online. CORS is already open
 | `POST` | `/api/room/:id/move` | `{playerId, move}` | `{ok}` (server reveals when both are in) |
 | `POST` | `/api/room/:id/leave` | `{playerId}` | `{ok}` |
 
-## Notes & limits
+## Security model
 
-- **Live matches are server-authoritative:** each round resolves only when both
-  players' moves are in, so neither client can see the other's move early —
-  cheat-proof by construction.
-- **Async challenge results are client-reported** (same trust level as the
-  offline link mode, which already puts the gauntlet in the URL). Fine for
-  friendly play; for competitive integrity, judge those server-side too.
+- **Auth:** every player gets a bearer **token** on registration (returned from
+  `/api/player`). All mutating endpoints require it (`Authorization: Bearer …`)
+  and verify it matches the acting `playerId`, so you can't impersonate or
+  submit results as another player. (Trust-on-first-use — good enough without a
+  full accounts system; upgrade to real accounts for cross-device identity.)
+- **Only server-judged games are rated.** Live / Quick-Match rounds resolve on
+  the server once both moves are in, so they're cheat-proof and **rated**.
+  Async **challenge results are client-reported and therefore UNRATED** — they
+  record a casual W/L + head-to-head but never touch Elo, so scores can't be
+  faked to climb the ladder.
+- **Input hardening:** display names are stripped of HTML/control characters
+  server-side (and escaped client-side); request bodies are size-capped.
+- **Rate limiting:** ~100 requests / 10s / IP (429 on exceed).
+
+## Notes & limits
 - **Hosting for live:** Server-Sent Events need a host that doesn't buffer
   responses (Render, Fly, Railway all work; the server sets `X-Accel-Buffering:
   no`). Serverless platforms with short request limits may cut SSE streams.

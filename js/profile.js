@@ -25,7 +25,7 @@ function defaults() {
     unlocks: { champions: [...STARTERS], arenas: ["nebula"], titles: [] },
     achievements: {},
     daily: null,
-    settings: { theme: "dark", sound: true, arena: "nebula", online: { id: "", name: "", rating: 0 } },
+    settings: { theme: "dark", sound: true, arena: "nebula", online: { id: "", name: "", rating: 0, token: "" } },
   };
 }
 

@@ -31,6 +31,9 @@ const MOVES = ["rock", "paper", "scissors"];
 const BEATS = { rock: "scissors", paper: "rock", scissors: "paper" }; // key beats value
 const LABEL = { rock: "Rock", paper: "Paper", scissors: "Scissors" };
 
+/* Escape untrusted strings (player names come from other users -> XSS guard) */
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 /* ---------- DOM helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -241,7 +244,7 @@ async function saveName() {
   const name = (el.nameInput.value || "").trim().slice(0, 24);
   if (!name) { el.nameInput.focus(); return; }
   const o = identity(); o.name = name;
-  try { if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); o.id = p.id; o.name = p.name; if (p.rating != null) o.rating = p.rating; } }
+  try { if (net.online()) { const p = await net.registerPlayer(name, o.id || undefined); o.id = p.id; o.name = p.name; if (p.rating != null) o.rating = p.rating; if (p.token) { o.token = p.token; net.setToken(p.token); } } }
   catch {}
   if (!o.id) o.id = "local-" + Math.random().toString(36).slice(2, 10);
   save();
@@ -272,10 +275,10 @@ function refreshSetupForMode() {
       const foe = CHAMPIONS.find((c) => c.id === pendingChallenge.c);
       const who = pendingChallenge.online && pendingChallenge.name ? pendingChallenge.name : foe.name;
       el.challengeBanner.hidden = false;
-      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">🔗</span><img src="${foe.img}" alt=""/><div class="challenge-banner__body"><div class="challenge-banner__title">${who} laid down a gauntlet</div><div class="challenge-banner__sub">Best of ${pendingChallenge.m.length}${pendingChallenge.online ? " · online" : ""} · out-read their throws to win.</div></div>`;
+      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">🔗</span><img src="${foe.img}" alt=""/><div class="challenge-banner__body"><div class="challenge-banner__title">${esc(who)} laid down a gauntlet</div><div class="challenge-banner__sub">Best of ${pendingChallenge.m.length}${pendingChallenge.online ? " · online" : ""} · out-read their throws to win.</div></div>`;
     } else if (liveJoin) {
       el.challengeBanner.hidden = false;
-      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">⚡</span>${pendingLive.hostImg ? `<img src="${pendingLive.hostImg}" alt=""/>` : ""}<div class="challenge-banner__body"><div class="challenge-banner__title">${pendingLive.hostName} wants a live match</div><div class="challenge-banner__sub">Real-time · pick your champion and jump in.</div></div>`;
+      el.challengeBanner.innerHTML = `<span class="challenge-banner__ic">⚡</span>${pendingLive.hostImg ? `<img src="${pendingLive.hostImg}" alt=""/>` : ""}<div class="challenge-banner__body"><div class="challenge-banner__title">${esc(pendingLive.hostName)} wants a live match</div><div class="challenge-banner__sub">Real-time · pick your champion and jump in.</div></div>`;
     } else el.challengeBanner.hidden = true;
   }
   const span = el.startBtn.querySelector("span");
@@ -365,10 +368,10 @@ function updateSummary() {
   } else if (setup.mode === "accept") {
     const foe = pendingChallenge && CHAMPIONS.find((c) => c.id === pendingChallenge.c);
     const who = pendingChallenge && pendingChallenge.online && pendingChallenge.name ? pendingChallenge.name : (foe ? foe.name : "the");
-    el.setupSummary.innerHTML = `Beat <b>${who}</b>'s gauntlet as <b>${setup.champ.name}</b>.`;
+    el.setupSummary.innerHTML = `Beat <b>${esc(who)}</b>'s gauntlet as <b>${setup.champ.name}</b>.`;
   } else if (setup.mode === "live") {
     el.setupSummary.innerHTML = pendingLive
-      ? `Join <b>${pendingLive.hostName}</b>'s live match as <b>${setup.champ.name}</b>.`
+      ? `Join <b>${esc(pendingLive.hostName)}</b>'s live match as <b>${setup.champ.name}</b>.`
       : `Host a live match as <b>${setup.champ.name}</b> · first to <b>${setup.length}</b>.`;
   } else if (setup.mode === "quick") {
     el.setupSummary.innerHTML = `Find a random opponent as <b>${setup.champ.name}</b> · first to <b>${setup.length}</b>.`;
@@ -721,7 +724,7 @@ function endLive(d) {
     const meWins = rv.a === live.myId ? rv.aWins : rv.bWins;
     const themWins = rv.a === live.myId ? rv.bWins : rv.aWins;
     el.onlineNote.hidden = false;
-    el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${oppName}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
+    el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${esc(oppName)}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
   } else el.onlineNote.hidden = true;
   renderRatingNote(d.ratings ? d.ratings[live.myId] : null);
 
@@ -1006,7 +1009,7 @@ function endMatchChallenge() {
         const rv = r.rivalry;
         const meWins = rv.a === me.id ? rv.aWins : rv.bWins;
         const themWins = rv.a === me.id ? rv.bWins : rv.aWins;
-        el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${r.challengerName}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
+        el.onlineNote.innerHTML = `<span class="h2h__label">Head-to-head vs ${esc(r.challengerName)}</span><span class="h2h__score"><b class="me">${meWins}</b><span class="sep">–</span><b class="them">${themWins}</b></span>`;
         renderRatingNote(r.ratings ? r.ratings[me.id] : null);
       } catch { el.onlineNote.hidden = true; }
     })();
@@ -1100,7 +1103,7 @@ async function renderOnlineSections() {
     return;
   }
   const me = identity();
-  host.innerHTML = `<h3 class="panel__title">Rivalries <span class="muted">${me.name ? "as " + me.name : ""}</span></h3><div class="career__empty" id="rivLoad"><span>⏳</span><div>Loading your online records…</div></div>`;
+  host.innerHTML = `<h3 class="panel__title">Rivalries <span class="muted">${me.name ? "as " + esc(me.name) : ""}</span></h3><div class="career__empty" id="rivLoad"><span>⏳</span><div>Loading your online records…</div></div>`;
   if (!hasIdentity()) { document.getElementById("rivLoad").innerHTML = `<span>🌐</span><div>Set a display name (create or accept a challenge) to start building online rivalries.</div>`; return; }
   try {
     const [rv, lb] = await Promise.all([net.getRivalries(me.id).catch(() => ({ rivalries: [] })), net.getLeaderboard().catch(() => ({ leaderboard: [] }))]);
@@ -1112,14 +1115,14 @@ async function renderOnlineSections() {
 
     const rivals = rv.rivalries || [];
     const rivalsHTML = rivals.length
-      ? `<ol class="lb">${rivals.map((r) => `<li class="lb__row lb__row--h2h"><span class="lb__vs">vs</span><span class="lb__name">${r.name}${r.rating ? ` <em>${r.rating}</em>` : ""}</span><span class="lb__bar"><i style="width:${r.games ? Math.round((r.youWins / r.games) * 100) : 0}%"></i></span><span class="lb__stat"><b class="me">${r.youWins}</b> – <b class="them">${r.themWins}</b></span></li>`).join("")}</ol>`
+      ? `<ol class="lb">${rivals.map((r) => `<li class="lb__row lb__row--h2h"><span class="lb__vs">vs</span><span class="lb__name">${esc(r.name)}${r.rating ? ` <em>${r.rating}</em>` : ""}</span><span class="lb__bar"><i style="width:${r.games ? Math.round((r.youWins / r.games) * 100) : 0}%"></i></span><span class="lb__stat"><b class="me">${r.youWins}</b> – <b class="them">${r.themWins}</b></span></li>`).join("")}</ol>`
       : `<div class="career__empty"><span>🤝</span><div>No rivalries yet — send a challenge link or play a Quick Match to start one.</div></div>`;
     const medals = ["🥇", "🥈", "🥉"];
     const lbHTML = board.length
-      ? `<ol class="lb">${board.map((x, i) => `<li class="lb__row lb__row--rank ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${x.name}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__stat"><b class="lb__rating">${x.rating}</b><span class="lb__sub">${x.wins}W · ${x.losses}L</span></span></li>`).join("")}</ol>`
+      ? `<ol class="lb">${board.map((x, i) => `<li class="lb__row lb__row--rank ${x.id === me.id ? "lb__row--you" : ""}"><span class="lb__rank">${medals[i] || i + 1}</span><span class="lb__name">${esc(x.name)}${x.id === me.id ? " <em>(you)</em>" : ""}</span><span class="lb__stat"><b class="lb__rating">${x.rating}</b><span class="lb__sub">${x.wins}W · ${x.losses}L</span></span></li>`).join("")}</ol>`
       : `<div class="career__empty"><span>🏆</span><div>The global leaderboard is empty — be the first to post a win.</div></div>`;
     host.innerHTML = `
-      <h3 class="panel__title">Your rating <span class="muted">${me.name ? "as " + me.name : ""}</span></h3>
+      <h3 class="panel__title">Your rating <span class="muted">${me.name ? "as " + esc(me.name) : ""}</span></h3>
       ${heroHTML}
       <h3 class="panel__title" style="margin-top:24px">Rivalries</h3>
       ${rivalsHTML}
@@ -1450,6 +1453,13 @@ async function resolvePending() {
 async function boot() {
   applyTheme(profile.settings.theme || "dark");
   applyArena(profile.settings.arena || "nebula");
+  net.setToken((profile.settings.online && profile.settings.online.token) || "");
+  // bind a token for identities created before auth existed
+  if (net.online() && hasIdentity() && !(profile.settings.online.token)) {
+    net.registerPlayer(profile.settings.online.name, profile.settings.online.id)
+      .then((pl) => { if (pl && pl.token) { profile.settings.online.token = pl.token; net.setToken(pl.token); save(); } })
+      .catch(() => {});
+  }
   registerSW();
   injectIcons(document);
   buildRivalPicker();
