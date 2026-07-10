@@ -1,115 +1,408 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://code.jquery.com/jquery-3.3.1.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0b14" />
+  <meta name="description" content="RIVALS — a premium Rock Paper Scissors duel. Pick your champion, read your rival, and claim the crown." />
 
-    <link rel="stylesheet" href="stylechette.css">
-    <link rel="stylesheet" href="gamepy.css">
+  <title>RIVALS · Rock Paper Scissors</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet" />
 
-    <title>Document</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%8A%3C/text%3E%3C/svg%3E" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="RIVALS" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-    <section id="header"></section>
-    <main id="gameplay">
-                <!-- The Modal -->
-        <div id="myModal" class="modal">
-            <!-- Modal content -->
-            <div class="modal-content">
-            <span class="close">&times;</span>
-            <p id="result">Player 1 wins!</p>
-            <button id="continue">Continue</button>
-            </div>
+<body data-screen="loading">
+  <!-- Ambient animated background -->
+  <div class="ambient" aria-hidden="true">
+    <span class="orb orb--a"></span>
+    <span class="orb orb--b"></span>
+    <span class="orb orb--c"></span>
+    <span class="grain"></span>
+  </div>
+
+  <!-- Confetti / FX layer -->
+  <canvas id="fx" class="fx-layer" aria-hidden="true"></canvas>
+
+  <!-- ============ TOP BAR ============ -->
+  <header class="topbar">
+    <a class="brand" href="#" data-nav="home" aria-label="RIVALS — home">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none"><path d="M24 4l17 9v13c0 11-7.4 17.8-17 22C14.4 43.8 7 37 7 26V13l17-9z" stroke="url(#g)" stroke-width="2.4" fill="rgba(124,92,255,.12)"/><path d="M17 25l5 5 9-11" stroke="url(#g)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="g" x1="7" y1="4" x2="41" y2="44"><stop stop-color="#8b6bff"/><stop offset="1" stop-color="#25d5e6"/></linearGradient></defs></svg>
+      </span>
+      <span class="brand__name">RIVALS</span>
+    </a>
+
+    <div class="topbar__actions">
+      <button class="rating-chip" id="levelChip" data-nav="profile" type="button" aria-label="Open your profile and rating">
+        <span class="rating-chip__ic">★</span>
+        <b id="tbRating">—</b>
+      </button>
+      <button class="icon-btn" id="howtoBtn" type="button" aria-haspopup="dialog" aria-label="How to play">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a10 10 0 100-20 10 10 0 000 20z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.6 9.2a2.5 2.5 0 114.2 2c-1 .8-1.8 1.3-1.8 2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.15" fill="currentColor"/></svg>
+        <span class="icon-btn__label">How to play</span>
+      </button>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle light and dark theme">
+        <svg class="ic ic--moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z" fill="currentColor"/></svg>
+        <svg class="ic ic--sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5 5l1.9 1.9M17.1 17.1L19 19M19 5l-1.9 1.9M6.9 17.1L5 19"/></g></svg>
+      </button>
+      <button class="icon-btn" id="soundBtn" type="button" aria-pressed="true" aria-label="Toggle sound">
+        <svg class="ic ic--on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg class="ic ic--off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9.5l4 5M21 9.5l-4 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage">
+
+    <!-- ================= HOME ================= -->
+    <section class="screen screen--home" id="screen-home" aria-labelledby="home-title" hidden>
+      <div class="home">
+        <div class="home__intro">
+          <p class="eyebrow reveal" data-r="1"><span class="dot"></span> Best-of duels · read your rival</p>
+          <h1 class="display reveal" data-r="2" id="home-title">
+            Rock. Paper. Scissors.<br /><span class="grad">Outsmart everyone.</span>
+          </h1>
+          <p class="lede reveal" data-r="3">
+            Pick your champion, size up your rival, and win the mind game.
+            Three moves, endless bluffs — the crown goes to whoever reads the room best.
+          </p>
+          <div class="home__cta reveal" data-r="4">
+            <button class="btn btn--primary btn--lg" data-nav="setup" id="playBtn">
+              <span>Enter the arena</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="btn btn--ghost btn--lg" id="howtoBtn2" type="button">How it works</button>
+          </div>
+
+          <!-- Career / returning-player stats -->
+          <div class="career reveal" data-r="5" id="career" aria-label="Your career record">
+            <!-- filled by JS: shows empty state for first-time players -->
+          </div>
+
+          <!-- Daily challenge -->
+          <button class="daily reveal" data-r="6" id="dailyCard" data-nav="setup" type="button" aria-label="Daily challenge — play now"></button>
         </div>
-  
-        <section class="game-section" >
-            <p class="result-comment">Let's Play</p>
 
-            <div class="game-chouse-part">
+        <div class="home__art reveal" data-r="3" aria-hidden="true">
+          <div class="token-cluster">
+            <div class="token token--rock float-a"><span class="token__glyph" data-icon="rock"></span></div>
+            <div class="token token--paper float-b"><span class="token__glyph" data-icon="paper"></span></div>
+            <div class="token token--scissors float-c"><span class="token__glyph" data-icon="scissors"></span></div>
+            <span class="ring ring--1"></span>
+            <span class="ring ring--2"></span>
+          </div>
+        </div>
+      </div>
+    </section>
 
-               
-                <section class="player-turn">
+    <!-- ================= SETUP ================= -->
+    <section class="screen screen--setup" id="screen-setup" aria-labelledby="setup-title" hidden>
+      <div class="setup">
+        <div class="setup__head">
+          <button class="back" data-nav="home" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back
+          </button>
+          <div class="steps" aria-hidden="true"><span class="step is-active">1 · Champion</span><span class="step">2 · Rival</span><span class="step">3 · Fight</span></div>
+        </div>
 
-                    <div class="oponent">
-                        <p class="gamescorePL">0</p>
-                        <div class="oponent-img">
-                            <img src="./img/The_friend.png" alt="">
-                        </div>
-                        <p>Player: <span id="player-score">0</span></p>
-                        
-                    </div>
-                    <div class="chosen-items">
-                        <button id="rock">
-                            <div  class="chosen-item rock">
-                                <img src="./img/Rock-removebg-preview 1.png" alt="">
-                            </div>
-                        </button>
-                       <button id="paper">
-                        <div  class="chosen-item paper">
-                            <img src="./img/paper-removebg-preview 1.png" alt="">
+        <div class="challenge-banner" id="challengeBanner" hidden></div>
 
-                        </div>
-                       </button>
-                       <button id="scissors">
-                        <div  class="chosen-item scissors">
-                            <img src="./img/scissors-removebg-preview 1.png" alt="">
-                        </div>
-                       </button>
-                    </div>
-                </section>
+        <div class="mode-switch" id="modeSwitch" role="radiogroup" aria-label="Game mode">
+          <button class="mode is-selected" role="radio" aria-checked="true" data-mode="ai" type="button">
+            <span class="mode__ic">🤖</span>
+            <span class="mode__text"><span class="mode__title">vs Rival</span><span class="mode__sub">Face the AI</span></span>
+          </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="pvp" type="button">
+            <span class="mode__ic">👥</span>
+            <span class="mode__text"><span class="mode__title">Pass &amp; Play</span><span class="mode__sub">Two players, one device</span></span>
+          </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="challenge" type="button">
+            <span class="mode__ic">🔗</span>
+            <span class="mode__text"><span class="mode__title">Challenge</span><span class="mode__sub">Send a friend a gauntlet</span></span>
+          </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="live" type="button">
+            <span class="mode__ic">⚡</span>
+            <span class="mode__text"><span class="mode__title">Live</span><span class="mode__sub">Invite a friend, real-time</span></span>
+          </button>
+          <button class="mode" role="radio" aria-checked="false" data-mode="quick" type="button">
+            <span class="mode__ic">🌐</span>
+            <span class="mode__text"><span class="mode__title">Quick Match</span><span class="mode__sub">Random opponent online</span></span>
+          </button>
+        </div>
 
-                <section>
-                    <div class="vs-img">
-                        <img src="./img/vs-removebg-preview.png" alt="">
-                    </div>
-                </section>
-                
-                <section class="oponent-turn">
+        <h2 class="section-title" id="setup-title">Choose your champion</h2>
+        <p class="section-sub" id="champSub">This is you in the ring. Pick the face of your winning streak.</p>
 
-                    <button id="question-mark">
-                        <div class="chosen-item ">
-                            <img  src="./img/question-mark-sign.png" alt="">
-                        </div>
-                    </button>
-                    
-                    <div class="oponent">
-                        <p class="gamescoreCM">0</p>
-                        <div class="oponent-img">
-                            <img src="./img/The_evil_computer.png" alt="">
-                        </div>
+        <div class="roster" id="roster" role="radiogroup" aria-label="Choose your champion"></div>
 
-                        <p>
-                            Computer: <span id="computer-score">0</span>
-                        </p>
-                       
-                    </div>
-                </section>
-                
-                
-                
-               
+        <div id="rivalSection">
+          <h2 class="section-title section-title--sm">Choose your rival</h2>
+          <p class="section-sub">Each rival plays by its own tell. Learn it, and beat it.</p>
+          <div class="rival-picker" id="rivalPicker" role="radiogroup" aria-label="Choose your rival"></div>
+        </div>
 
-                
+        <div class="setup__grid setup__grid--one" id="lengthSection">
+          <div class="panel">
+            <h3 class="panel__title">Match length</h3>
+            <p class="panel__sub">First to reach the target wins the crown.</p>
+            <div class="segmented segmented--row" id="length" role="radiogroup" aria-label="Match length">
+              <button role="radio" class="seg" data-value="3" aria-checked="false"><span class="seg__name">First to 3</span><span class="seg__meta">Quick</span></button>
+              <button role="radio" class="seg is-selected" data-value="5" aria-checked="true"><span class="seg__name">First to 5</span><span class="seg__meta">Classic</span></button>
+              <button role="radio" class="seg" data-value="7" aria-checked="false"><span class="seg__name">First to 7</span><span class="seg__meta">Marathon</span></button>
             </div>
-            <div>
-                <div>
+          </div>
+        </div>
 
-                </div>
+        <div class="setup__foot">
+          <div class="setup__summary" id="setupSummary" aria-live="polite"></div>
+          <button class="btn btn--primary btn--lg" id="startBtn" type="button" disabled>
+            <span>Start the duel</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= BATTLE ================= -->
+    <section class="screen screen--battle" id="screen-battle" aria-labelledby="battle-status" hidden>
+      <div class="arena">
+
+        <!-- Scoreboard -->
+        <div class="scoreboard">
+          <div class="side side--player">
+            <img class="side__avatar" id="playerAvatar" alt="" />
+            <div class="side__meta">
+              <span class="side__name" id="playerName">You</span>
+              <span class="side__tag">Champion</span>
             </div>
-        </section>
-    </main>
+            <div class="side__score" id="playerScore" aria-label="Your score">0</div>
+          </div>
 
-    <section id="footer"></section>
-    <script src="./game.js">
-       
-    </script>
-    
+          <div class="scoreboard__center">
+            <div class="pip-row" id="pips" aria-hidden="true"></div>
+            <span class="target-label" id="targetLabel">First to 5</span>
+          </div>
+
+          <div class="side side--cpu">
+            <div class="side__score" id="cpuScore" aria-label="Rival score">0</div>
+            <div class="side__meta side__meta--right">
+              <span class="side__name" id="cpuName">Duelist</span>
+              <span class="side__tag" id="cpuTag">Rival</span>
+            </div>
+            <img class="side__avatar" id="cpuAvatar" alt="" />
+          </div>
+        </div>
+
+        <!-- Duel table -->
+        <div class="duel">
+          <div class="hand hand--player">
+            <div class="hand__card" id="playerHand" data-state="idle"><span class="hand__glyph" data-icon="rock"></span></div>
+            <span class="hand__caption">You</span>
+          </div>
+
+          <div class="duel__center">
+            <span class="duel__vs" id="duelVs" aria-hidden="true">VS</span>
+            <div class="countdown" id="countdown" aria-hidden="true"></div>
+            <div class="verdict" id="verdict" role="status" aria-live="assertive"></div>
+          </div>
+
+          <div class="hand hand--cpu">
+            <div class="hand__card" id="cpuHand" data-state="idle"><span class="hand__glyph" data-icon="question"></span></div>
+            <span class="hand__caption" id="cpuHandCaption">Rival</span>
+          </div>
+        </div>
+
+        <p class="battle-status" id="battle-status" aria-live="polite">Make your move.</p>
+
+        <!-- Move controls -->
+        <div class="moves" id="moves" role="group" aria-label="Choose your move">
+          <button class="move move--rock" data-move="rock" type="button">
+            <span class="move__glyph" data-icon="rock"></span>
+            <span class="move__label">Rock</span>
+            <kbd class="move__key">R</kbd>
+          </button>
+          <button class="move move--paper" data-move="paper" type="button">
+            <span class="move__glyph" data-icon="paper"></span>
+            <span class="move__label">Paper</span>
+            <kbd class="move__key">P</kbd>
+          </button>
+          <button class="move move--scissors" data-move="scissors" type="button">
+            <span class="move__glyph" data-icon="scissors"></span>
+            <span class="move__label">Scissors</span>
+            <kbd class="move__key">S</kbd>
+          </button>
+        </div>
+
+        <!-- Pass-the-device cover (pass & play) -->
+        <div class="passcover" id="passCover" hidden>
+          <div class="passcover__card">
+            <span class="passcover__ic">🙈</span>
+            <h3 class="passcover__title">Pass to <b id="passName">Player 2</b></h3>
+            <p class="passcover__sub">Keep your move secret. Hand over the device, then tap when you're ready.</p>
+            <button class="btn btn--primary btn--lg" id="passBtn" type="button">I'm ready</button>
+          </div>
+        </div>
+
+        <!-- Live: waiting for opponent -->
+        <div class="passcover" id="liveWait" hidden>
+          <div class="passcover__card">
+            <span class="passcover__ic live-pulse">⚡</span>
+            <h3 class="passcover__title" id="liveWaitTitle">Waiting for your rival…</h3>
+            <p class="passcover__sub" id="liveWaitSub">Share this link. The match starts the moment they join.</p>
+            <div class="live-code" id="liveCode" hidden></div>
+            <div class="live-wait__actions">
+              <button class="btn btn--primary" id="liveCopyBtn" type="button">Copy invite link</button>
+              <button class="btn btn--ghost" id="liveCancelBtn" type="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Round history -->
+        <div class="history" aria-label="Round history">
+          <div class="history__head">
+            <span class="history__title">Round history</span>
+            <button class="link-btn" id="quitBtn" type="button">Forfeit match</button>
+          </div>
+          <ol class="history__list" id="historyList">
+            <li class="history__empty">No rounds yet — throw your first move to begin the story.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= RESULT ================= -->
+    <section class="screen screen--result" id="screen-result" aria-labelledby="result-title" hidden>
+      <div class="result" id="resultCard" data-outcome="win">
+        <div class="result__badge" id="resultBadge" aria-hidden="true"></div>
+        <p class="result__kicker" id="resultKicker">Match complete</p>
+        <h2 class="result__title display" id="result-title">Victory</h2>
+        <p class="result__line" id="resultLine"></p>
+
+        <div class="h2h" id="onlineNote" hidden></div>
+        <div class="rating-note" id="ratingNote" hidden></div>
+
+        <div class="result__scoreline" id="resultScoreline" aria-hidden="true"></div>
+
+        <div class="result__stats" id="resultStats"></div>
+
+        <!-- Post-match reads -->
+        <div class="reads" id="readsPanel" hidden>
+          <div class="reads__head"><span class="reads__ic">🧠</span> How <b id="readsRival">the rival</b> read you</div>
+          <p class="reads__body" id="readsBody"></p>
+          <p class="reads__tip" id="readsTip"></p>
+        </div>
+
+        <div class="result__cta">
+          <button class="btn btn--primary btn--lg" id="rematchBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 018-8c3.2 0 6 1.9 7.3 4.7M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12a8 8 0 01-8 8c-3.2 0-6-1.9-7.3-4.7M4 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Rematch</span>
+          </button>
+          <button class="btn btn--ghost btn--lg" id="shareBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+            <span>Share</span>
+          </button>
+          <button class="btn btn--ghost btn--lg" data-nav="setup" type="button">Change setup</button>
+        </div>
+      </div>
+    </section>
+    <!-- ================= PROFILE ================= -->
+    <section class="screen screen--profile" id="screen-profile" aria-labelledby="profile-title" hidden>
+      <div class="profile">
+        <div class="setup__head">
+          <button class="back" data-nav="home" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back
+          </button>
+          <span class="steps"><span class="step is-active" id="profile-title">Your profile</span></span>
+        </div>
+        <div id="profileBody"><!-- rendered by JS --></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= HOW TO PLAY (dialog) ================= -->
+  <div class="sheet" id="howtoSheet" role="dialog" aria-modal="true" aria-labelledby="howto-title" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel" role="document">
+      <button class="sheet__close" data-close type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="sheet__title" id="howto-title">How to play</h2>
+      <p class="sheet__lede">A duel of nerve. Same three moves you know — the edge is reading your rival.</p>
+      <ul class="rules">
+        <li><span class="rules__ic" data-icon="rock"></span><div><strong>Rock</strong> crushes Scissors</div></li>
+        <li><span class="rules__ic" data-icon="paper"></span><div><strong>Paper</strong> covers Rock</div></li>
+        <li><span class="rules__ic" data-icon="scissors"></span><div><strong>Scissors</strong> cut Paper</div></li>
+      </ul>
+      <div class="tips">
+        <p><strong>Keyboard:</strong> press <kbd>R</kbd> <kbd>P</kbd> <kbd>S</kbd> to throw, <kbd>Esc</kbd> to leave a match.</p>
+        <p><strong>Grandmaster</strong> tracks your favourite moves and counters your patterns — mix it up to win.</p>
+      </div>
+      <button class="btn btn--primary btn--block" data-close type="button">Got it</button>
+    </div>
+  </div>
+
+  <!-- ================= NAME (dialog) ================= -->
+  <div class="sheet" id="nameSheet" role="dialog" aria-modal="true" aria-labelledby="name-title" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel" role="document">
+      <button class="sheet__close" data-close type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="sheet__title" id="name-title">Play online</h2>
+      <div class="auth-tabs" id="authTabs" role="tablist">
+        <button type="button" class="auth-tab is-active" data-authmode="guest" role="tab">Guest</button>
+        <button type="button" class="auth-tab" data-authmode="login" role="tab">Log in</button>
+        <button type="button" class="auth-tab" data-authmode="signup" role="tab">Sign up</button>
+      </div>
+      <p class="sheet__lede" id="authHint">Pick a display name to play now. Create an account to keep your rating and rivalries across devices.</p>
+      <input class="name-input" id="authUsername" type="text" maxlength="20" placeholder="Username" autocomplete="username" hidden />
+      <input class="name-input" id="authPassword" type="password" maxlength="64" placeholder="Password" autocomplete="current-password" hidden />
+      <input class="name-input" id="nameInput" type="text" maxlength="24" placeholder="Display name" autocomplete="off" />
+      <p class="auth-error" id="authError" hidden></p>
+      <button class="btn btn--primary btn--block" id="nameSaveBtn" type="button">Play as guest</button>
+    </div>
+  </div>
+
+  <!-- ================= SHARE (dialog) ================= -->
+  <div class="sheet" id="shareSheet" role="dialog" aria-modal="true" aria-labelledby="share-title" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel" role="document">
+      <button class="sheet__close" data-close type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="sheet__title" id="share-title">Share your result</h2>
+      <p class="sheet__lede">A match card, ready to post anywhere.</p>
+      <img class="share-preview" id="sharePreview" alt="Your match result card" />
+      <div class="share-actions">
+        <button class="btn btn--primary" id="shareNativeBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+          <span>Share</span>
+        </button>
+        <button class="btn btn--ghost" id="shareDownloadBtn" type="button">Download</button>
+        <button class="btn btn--ghost" id="shareCopyBtn" type="button">Copy link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= UNLOCK / LEVEL-UP (dialog) ================= -->
+  <div class="sheet" id="unlockSheet" role="dialog" aria-modal="true" aria-label="New rewards" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel sheet__panel--unlock" role="document" id="unlockBody"></div>
+  </div>
+
+  <!-- Live region for screen-reader status announcements -->
+  <div class="sr-only" aria-live="polite" id="srStatus"></div>
+
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,10 @@
+node_modules/
+package.json
+package-lock.json
+_*.mjs
+scratch-*.mjs
+server/data.json
+server/*.db
+server/*.db-journal
+server/*.db-wal
+server/*.db-shm
