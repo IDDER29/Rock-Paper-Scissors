@@ -88,6 +88,21 @@
 :root[data-theme="light"] .gitem__name { background: linear-gradient(to top, rgba(255, 255, 255, 0.94), transparent); color: #12142a; }
 :root[data-theme="light"] .passcover { background: rgba(244, 245, 251, 0.86); }
 
+/* Light theme: keep accents legible on light surfaces (gold/violet tints
+   tuned for dark backgrounds wash out on white). */
+:root[data-theme="light"] .rival__reward { color: #986a12; background: rgba(184, 138, 32, 0.14); border-color: rgba(184, 138, 32, 0.4); }
+:root[data-theme="light"] .rival__stars,
+:root[data-theme="light"] .rating-chip__ic { color: #cf9218; }
+:root[data-theme="light"] .daily__badge { color: #0c93a3; }
+:root[data-theme="light"] .tier--t1 { --tier-fg: #5c628a; --tier-bg: rgba(92, 98, 138, 0.1); --tier-line: rgba(92, 98, 138, 0.3); }
+:root[data-theme="light"] .tier--t5 { --tier-fg: #a9741a; --tier-bg: rgba(184, 138, 32, 0.14); --tier-line: rgba(184, 138, 32, 0.4); }
+:root[data-theme="light"] .rival.is-selected,
+:root[data-theme="light"] .mode.is-selected,
+:root[data-theme="light"] .lb__row--you { background: rgba(139, 107, 255, 0.15); }
+:root[data-theme="light"] .seg.is-selected { background: rgba(139, 107, 255, 0.17); }
+:root[data-theme="light"] .step.is-active { background: rgba(139, 107, 255, 0.14); }
+:root[data-theme="light"] .duel__vs { opacity: 0.5; }
+
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; }
